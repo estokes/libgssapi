@@ -1,0 +1,5 @@
+[workspace]
+members = [
+        "libgssapi-sys",
+        "libgssapi"
+]
