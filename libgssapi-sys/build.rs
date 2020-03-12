@@ -6,6 +6,9 @@ use std::{
 fn main() {
     println!("cargo:rustc-link-lib=gssapi_krb5");
     let bindings = bindgen::Builder::default()
+        .whitelist_type("(OM_.+|gss_.+)")
+        .whitelist_var("_?GSS_.+|gss_.+")
+        .whitelist_function("gss_.*")
         .header("wrapper.h")
         .generate()
         .expect("failed to generate gssapi bindings");

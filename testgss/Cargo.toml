@@ -1,8 +1,8 @@
 [package]
-name = "libgssapi-sys"
+name = "testgss"
 version = "0.1.0"
 authors = ["Eric Stokes <letaris@gmail.com>"]
 edition = "2018"
 
-[build-dependencies]
-bindgen = "0.53"
+[dependencies]
+libgssapi-sys = {path = "../libgssapi-sys"}
