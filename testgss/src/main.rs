@@ -269,7 +269,6 @@ impl Name {
     }
 }
 
-/*
 #[derive(Clone, Copy, Debug)]
 pub enum CredUsage {
     Accept,
@@ -293,13 +292,37 @@ impl Drop for Cred {
 impl Cred {
     pub fn acquire(
         name: Option<Name>,
-        time_req: Option<u64>,
+        time_req: Option<u32>,
         usage: CredUsage
     ) -> Result<Cred, Error> {
-        
+        let name = name.map(|n| n.0).unwrap_or(ptr::null_mut::<gss_name_struct>());
+        let time_req = time_req.unwrap_or(_GSS_C_INDEFINITE);
+        let desired_mechs = {
+            let mut s = OidSet::new()?;
+            s.add(gss_mech_krb5)?;
+            s
+        };
+        let usage = match usage {
+            CredUsage::Both => GSS_C_BOTH,
+            CredUsage::Initiate => GSS_C_INITIATE,
+            CredUsage::Accept => GSS_C_ACCEPT
+        };
+        let mut minor = GSS_S_COMPLETE;
+        let mut cred = ptr::null_mut::<gss_cred_id_struct>();
+        let major = unsafe {
+            gss_acquire_cred(
+                &mut minor as *mut OM_uint32,
+                name,
+                time_req,
+                desired_mechs.as_ptr(),
+                usage,
+                &mut cred as *mut gss_cred_id,
+                ptr::null_mut::<gss_OID_set>(),
+                ptr::null_mut::<OM_uint32>()
+            )
+        };
     }
 }
-*/
 
 fn run() -> Result<(), Error> {
     dbg!("start");
