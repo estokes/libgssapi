@@ -88,18 +88,17 @@ impl GssBuf {
     }
 }
 
-/*
-pub struct Oid(gss_OID);
-
-pub struct OidSet(gss_OID_set);
+struct OidSet(gss_OID_set);
 
 impl Drop for OidSet {
     fn drop(&mut self) {
         let mut _minor = GSS_S_COMPLETE;
-        let _major = gss_release_oid_set(
-            &mut _minor as *mut OM_uint32,
-            &mut self.0 as *mut gss_OID_set
-        );
+        let _major = unsafe {
+            gss_release_oid_set(
+                &mut _minor as *mut OM_uint32,
+                &mut self.0 as *mut gss_OID_set
+            )
+        };
         // CR estokes: What to do on error?
     }
 }
@@ -107,10 +106,15 @@ impl Drop for OidSet {
 impl OidSet {
     pub fn new() -> Result<OidSet, Error> {
         let mut minor = GSS_S_COMPLETE;
-        let mut out = ptr::null_mut::<gss_OID_set>();
-        let major = gss_create_empty_oid_set(&mut minor as *mut OM_uint32, out);
+        let mut out = ptr::null_mut::<gss_OID_set_desc>();
+        let major = unsafe {
+            gss_create_empty_oid_set(
+                &mut minor as *mut OM_uint32,
+                &mut out as *mut gss_OID_set
+            )
+        };
         if major == GSS_S_COMPLETE {
-            Ok(OidSet(unsafe { *out }))
+            Ok(OidSet(out))
         } else {
             Err(Error {major, minor})
         }
@@ -122,11 +126,13 @@ impl OidSet {
     
     pub fn add(&mut self, id: gss_OID) -> Result<(), Error> {
         let mut minor = GSS_S_COMPLETE;
-        let major = gss_add_oid_set_member(
-            &mut minor as *mut OM_uint32,
-            id,
-            self.0
-        );
+        let major = unsafe {
+            gss_add_oid_set_member(
+                &mut minor as *mut OM_uint32,
+                id,
+                &mut self.0 as *mut gss_OID_set
+            )
+        };
         if major == GSS_S_COMPLETE {
             Ok(())
         } else {
@@ -137,12 +143,14 @@ impl OidSet {
     pub fn contains(&self, id: gss_OID) -> Result<bool, Error> {
         let mut minor = GSS_S_COMPLETE;
         let mut present = 0;
-        let major = gss_test_oid_set_member(
-            &mut minor as *mut OM_uint32,
-            id,
-            self.0,
-            &mut present as *mut std::os::raw::c_int
-        );
+        let major = unsafe {
+            gss_test_oid_set_member(
+                &mut minor as *mut OM_uint32,
+                id,
+                self.0,
+                &mut present as *mut std::os::raw::c_int
+            )
+        };
         if major == GSS_S_COMPLETE {
             Ok(if present != 0 { true } else { false })
         } else {
@@ -150,7 +158,6 @@ impl OidSet {
         }
     }
 }
-*/
 
 pub struct Name(gss_name_t);
 
@@ -261,6 +268,38 @@ impl Name {
         }
     }
 }
+
+/*
+#[derive(Clone, Copy, Debug)]
+pub enum CredUsage {
+    Accept,
+    Initiate,
+    Both
+}
+
+pub struct Cred(gss_cred_id_t);
+
+impl Drop for Cred {
+    fn drop(&mut self) {
+        let mut minor = GSS_S_COMPLETE;
+        let _major = gss_release_cred(
+            &mut minor as *mut OM_uint32,
+            &mut self.0 as *mut gss_cred_id_t
+        );
+        // CR estokes: log errors? panic?
+    }
+}
+
+impl Cred {
+    pub fn acquire(
+        name: Option<Name>,
+        time_req: Option<u64>,
+        usage: CredUsage
+    ) -> Result<Cred, Error> {
+        
+    }
+}
+*/
 
 fn run() -> Result<(), Error> {
     dbg!("start");
