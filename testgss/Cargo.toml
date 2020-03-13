@@ -6,3 +6,4 @@ edition = "2018"
 
 [dependencies]
 libgssapi-sys = {path = "../libgssapi-sys"}
+parking_lot = "0.10"
