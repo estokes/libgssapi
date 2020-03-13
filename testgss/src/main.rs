@@ -13,8 +13,8 @@ pub struct Error {
     pub minor: u32,
 }
 
-impl fmt::Display for Error {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+impl Error {
+    fn fmt_code(f: &mut fmt::Formatter<'_>, code: u32) -> fmt::Result {
         let mut message_context: OM_uint32 = 0;
         loop {
             let mut minor = GSS_S_COMPLETE as OM_uint32;
@@ -25,7 +25,7 @@ impl fmt::Display for Error {
             let major = unsafe {
                 gss_display_status(
                     &mut minor as *mut OM_uint32,
-                    self.major,
+                    code,
                     GSS_C_GSS_CODE as i32,
                     ptr::null_mut::<gss_OID_desc>(),
                     &mut message_context as *mut OM_uint32,
@@ -39,7 +39,7 @@ impl fmt::Display for Error {
                     )
                 };
                 let s = String::from_utf8_lossy(s);
-                let res = write!(f, "gssapi error {}", s);
+                let res = write!(f, "gssapi error {}\n", s);
                 let major = unsafe {
                     gss_release_buffer(
                         &mut minor as *mut OM_uint32,
@@ -47,19 +47,23 @@ impl fmt::Display for Error {
                     )
                 };
                 if major != GSS_S_COMPLETE {
-                    panic!("gss_release_buffer {}, {}", major, minor);
+                    panic!("gss_release_buffer {}, {}\n", major, minor);
                 }
                 res?
             } else {
-                write!(
-                    f, "gssapi unknown error major {} minor {}",
-                    self.major, self.minor
-                )?;
+                write!(f, "gssapi unknown error code {}\n", code)?;
                 break;
             }
             if message_context == 0 { break; }
         }
         Ok(())
+    }
+}
+
+impl fmt::Display for Error {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        Error::fmt_code(f, self.major)?;
+        Ok(Error::fmt_code(f, self.minor)?)
     }
 }
 
@@ -281,25 +285,27 @@ pub struct Cred(gss_cred_id_t);
 impl Drop for Cred {
     fn drop(&mut self) {
         let mut minor = GSS_S_COMPLETE;
-        let _major = gss_release_cred(
-            &mut minor as *mut OM_uint32,
-            &mut self.0 as *mut gss_cred_id_t
-        );
+        let _major = unsafe {
+            gss_release_cred(
+                &mut minor as *mut OM_uint32,
+                &mut self.0 as *mut gss_cred_id_t
+            )
+        };
         // CR estokes: log errors? panic?
     }
 }
 
 impl Cred {
     pub fn acquire(
-        name: Option<Name>,
+        name: Option<&Name>,
         time_req: Option<u32>,
         usage: CredUsage
     ) -> Result<Cred, Error> {
         let name = name.map(|n| n.0).unwrap_or(ptr::null_mut::<gss_name_struct>());
         let time_req = time_req.unwrap_or(_GSS_C_INDEFINITE);
-        let desired_mechs = {
+        let mut desired_mechs = {
             let mut s = OidSet::new()?;
-            s.add(gss_mech_krb5)?;
+            unsafe { s.add(gss_mech_krb5)? };
             s
         };
         let usage = match usage {
@@ -315,18 +321,23 @@ impl Cred {
                 name,
                 time_req,
                 desired_mechs.as_ptr(),
-                usage,
-                &mut cred as *mut gss_cred_id,
+                usage as gss_cred_usage_t,
+                &mut cred as *mut gss_cred_id_t,
                 ptr::null_mut::<gss_OID_set>(),
                 ptr::null_mut::<OM_uint32>()
             )
         };
+        if major == GSS_S_COMPLETE {
+            Ok(Cred(cred))
+        } else {
+            Err(Error {major, minor})
+        }
     }
 }
 
 fn run() -> Result<(), Error> {
     dbg!("start");
-    let name = Name::new("nfs/ryouko")?;
+    let name = Name::new("nfs/ken-ohki.ryu-oh.org")?;
     dbg!("import name");
     let cname = name.canonicalize()?;
     dbg!("canonicalize name");
@@ -335,6 +346,7 @@ fn run() -> Result<(), Error> {
     let cname_s = cname.display()?;
     dbg!("display cname");
     println!("name: {}, cname: {}", name_s, cname_s);
+    let cred = Cred::acquire(Some(&cname), None, CredUsage::Accept)?;
     Ok(())
 }
 
