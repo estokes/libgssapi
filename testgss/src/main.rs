@@ -444,7 +444,7 @@ enum AcceptCtxInner {
     }
 }
 
-impl Drop for AcceptCtxInner {
+impl Drop for ServerCtxInner {
     fn drop(&mut self) {
         match self {
             AcceptCtxInner::Failed(_) | AcceptCtxInner::Uninit(_) => (),
@@ -455,32 +455,32 @@ impl Drop for AcceptCtxInner {
 }
 
 #[derive(Clone)]
-pub struct AcceptCtx(Arc<Mutex<AcceptCtxInner>>);
+pub struct ServerCtx(Arc<Mutex<ServerCtxInner>>);
 
-impl Deref for AcceptCtx {
-    type Target = Mutex<AcceptCtxInner>;
+impl Deref for ServerCtx {
+    type Target = Mutex<ServerCtxInner>;
 
     fn deref(&self) -> &Self::Target {
         &*self.0
     }
 }
 
-impl AcceptCtx {
-    fn new(cred: &Cred) -> AcceptCtx {
-        AcceptCtx(Arc::new(Mutex::new(AcceptCtxInner(cred.clone()))))
+impl ServerCtx {
+    pub fn new(cred: &Cred) -> AcceptCtx {
+        ServerCtx(Arc::new(Mutex::new(ServerCtxInner(cred.clone()))))
     }
 
-    fn step(&self, tok: &mut [u8]) -> Result<Option<Buf>, Error> {
+    pub fn step(&self, tok: &mut [u8]) -> Result<Option<Buf>, Error> {
         let mut inner = self.lock();
         let mut minor = GSS_S_COMPLETE;
         let mut (cred, ctx, current_delegated_cred) = match inner {
-            AcceptCtxInner::Uninit(cred) => {
+            ServerCtxInner::Uninit(cred) => {
                 (**cred, ptr::null_mut::<gss_ctx_id_struct>(), None)
             }
-            AcceptCtxInner::Partial { ctx, cred, delegated_cred } =>
+            ServerCtxInner::Partial { ctx, cred, delegated_cred } =>
                 (**cred, ctx, delegated_cred.clone()),
-            AcceptCtxInner::Complete {..} => return Ok(None),
-            AcceptCtxInner::Failed(e) => return Err(e),
+            ServerCtxInner::Complete {..} => return Ok(None),
+            ServerCtxInner::Failed(e) => return Err(e),
         };
         let tok = BufRef::from(tok);
         let mut out_tok = Buf::empty();
@@ -518,41 +518,69 @@ impl AcceptCtx {
         };
         if gss_error(major) > 0 {
             let e = Error { major, minor };
-            inner = AcceptCtxInner::Failed(e);
+            inner = ServerCtxInner::Failed(e);
             delete_ctx(ctx);
             Err(e)
         } else if major & _GSS_C_CONTINUE_NEEDED > 0 {
-            inner = AcceptCtxInner::Partial { ctx, delegated_cred };
+            inner = ServerCtxInner::Partial { ctx, delegated_cred };
             Ok(Some(out_tok))
         } else {
-            inner = AcceptCtxInner::Complete { ctx, delegated_cred };
+            inner = ServerCtxInner::Complete { ctx, delegated_cred };
             Ok(None)
         }
     }
 }
 
-enum InitiateCtxInner {
+enum ClientCtxInner {
     Failed(Error),
-    Uninit(Option<Cred>),
+    Uninit(Cred),
     Partial {
         ctx: gss_ctx_id_t,
-        cred: Option<Cred>
+        cred: Cred
     }
     Complete(gss_ctx_id_t)
 }
 
-impl Drop for InitiateCtxInner {
+impl Drop for ClientCtxInner {
     fn drop(&mut self) {
         match self {
-            AcceptCtxInner::Failed(_) | AcceptCtxInner::Uninit(_) => (),
-            AcceptCtxInner::Partial { ctx, .. } => delete_ctx(ctx),
-            AcceptCtxInner::Complete(ctx) => delete_ctx(ctx),
+            ClientCtxInner::Failed(_) | ClientCtxInner::Uninit(_) => (),
+            ClientCtxInner::Partial { ctx, .. } => delete_ctx(ctx),
+            ClientCtxInner::Complete(ctx) => delete_ctx(ctx),
         }
     }
 }
 
 #[derive(Clone)]
-struct InitiateCtx(Arc<Mutex<InitiateCtxInner>>);
+pub struct ClientCtx(Arc<Mutex<ClientCtxInner>>);
+
+impl Deref for ClientCtx {
+    type Target = Mutex<ClientCtxInner>;
+
+    fn deref(&self) -> &Self::Target {
+        &*self.0
+    }
+}
+
+impl ClientCtx {
+    pub fn new(cred: Cred) -> ClientCtx {
+        ClientCtx(Arc::new(Mutex::new(ClientCtxinner::Uninit(cred))))
+    }
+
+    pub fn step(&self, tok: Option<&mut [u8]>) -> Result<Option<Buf>, Error> {
+        let mut inner = self.lock();
+        let mut minor = GSS_S_COMPLETE;
+        let mut tok = tok.map(BufRef::from);
+        let mut tok_ptr = tok.map(|tok| tok.as_mut_ptr()).unwrap_or(ptr::null_mut());
+        let mut (ctx, cred) = match inner {
+            ClientCtxInner::Uninit(cred) => (ptr::null_mut(), **cred),
+            ClientCtxInner::Partial { ctx, cred } => (ctx, **cred),
+            ClientCtxInner::Failed(e) => return Err(e),
+            ClientCtxInner::Complete(_) => return Ok(None),
+        }
+        
+    }
+}
 
 fn run() -> Result<(), Error> {
     dbg!("start");
