@@ -1,9 +1,24 @@
 use libgssapi_sys::*;
+use parking_lot::Mutex;
 use std::{
-    self, boxed::Box, clone::Clone, error, fmt, ops::{Deref, Drop}, ptr, result::Result, slice,
+    self,
+    alloc::{alloc, Layout},
+    borrow::{Borrow, BorrowMut},
+    boxed::Box,
+    clone::Clone,
+    error, fmt,
+    marker::PhantomData,
+    ops::{Deref, Drop},
+    ptr,
+    result::Result,
+    slice,
     sync::Arc,
 };
-use parking_lot::Mutex;
+
+fn gss_error(x: OM_uint32) -> OM_uint32 {
+    x & ((_GSS_C_CALLING_ERROR_MASK << GSS_C_CALLING_ERROR_OFFSET)
+         | (_GSS_C_ROUTINE_ERROR_MASK << GSS_C_ROUTINE_ERROR_OFFSET))
+}
 
 #[derive(Clone, Copy, Debug)]
 pub struct Error {
@@ -67,26 +82,88 @@ impl fmt::Display for Error {
 
 impl error::Error for Error {}
 
-#[allow(dead_code)]
-struct GssBuf {
-    buf: Box<[u8]>,
-    gss_buf: gss_buffer_desc_struct,
-}
+#[repr(transparent)]
+struct BufRef<'a>(gss_buffer_desc_struct, PhantomData<&'a mut [u8]>);
 
-impl From<&[u8]> for GssBuf {
-    fn from(s: &[u8]) -> Self {
-        let mut buf: Box<[u8]> = Box::from(s);
-        let gss_buf = gss_buffer_desc_struct {
-            length: buf.len() as size_t,
-            value: (*buf).as_mut_ptr().cast(),
-        };
-        GssBuf { buf, gss_buf }
+impl<'a> Borrow<[u8]> for BufRef<'a> {
+    fn borrow(&self) -> &[u8] {
+        unsafe {
+            slice::from_raw_parts(self.0.value.cast(), self.0.length as usize)
+        }
     }
 }
 
-impl GssBuf {
-    fn as_ptr(&mut self) -> gss_buffer_t {
-        &mut self.gss_buf as gss_buffer_t
+impl<'a> BorrowMut<[u8]> for BufRef<'a> {
+    fn borrow_mut(&mut self) -> &mut [u8] {
+        unsafe {
+            slice::from_raw_parts_mut(self.0.value.cast(), self.0.length as usize)
+        }
+    }
+}
+
+impl<'a> From<&'a mut [u8]> for BufRef<'a> {
+    fn from(s: &mut [u8]) -> Self {
+        let gss_buf = gss_buffer_desc_struct {
+            length: s.len() as size_t,
+            value: s.as_mut_ptr().cast(),
+        };
+        BufRef(gss_buf, PhantomData)
+    }
+}
+
+impl<'a> BufRef<'a> {
+    fn as_mut_ptr(&'a mut BufRef<'a>) -> gss_buffer_t {
+        &mut self.0 as gss_buffer_t
+    }
+}
+
+/// This represents an owned buffer we got from gssapi, it will be
+/// deallocated via the library routine when it is dropped.
+#[repr(transparent)]
+#[allow(dead_code)]
+pub struct Buf(gss_buffer_desc);
+
+impl Borrow<[u8]> for Buf {
+    fn borrow(&self) -> &[u8] {
+        unsafe {
+            slice::from_raw_parts(self.0.value.cast(), self.0.length as usize)
+        }
+    }
+}
+
+impl BorrowMut<[u8]> for Buf {
+    fn borrow_mut(&mut self) -> &[u8] {
+        unsafe {
+            slice::from_raw_parts_mut(self.0.value.cast(), self.0.length as usize)
+        }
+    }
+}
+
+impl Drop for Buf {
+    fn drop(&mut self) {
+        if !self.0.value.is_null() {
+            let mut minor = GSS_S_COMPLETE;
+            let _major = unsafe {
+                gss_release_buffer(
+                    &mut minor as *mut OM_uint32,
+                    &mut self.0 as gss_buffer_t
+                )
+            };
+            // CR estokes: What to do if this fails?
+        }
+    }
+}
+
+impl Buf {
+    fn empty() -> Buf {
+        Buf(gss_buffer_desc {
+            length: 0 as size_t,
+            value: ptr::null_mut(),
+        })
+    }
+
+    fn as_mut_ptr(&mut self) -> gss_buffer_t {
+        &mut self.0 as gss_buffer_t
     }
 }
 
@@ -191,14 +268,14 @@ impl Deref for Name {
 }
 
 impl Name {
-    pub fn new(s: &str) -> Result<Self, Error> {
-        let mut buf = GssBuf::from(s.as_bytes());
+    pub fn new(s: &[u8]) -> Result<Self, Error> {
+        let mut buf = BufRef::from(s);
         let mut minor = GSS_S_COMPLETE;
         let mut name = ptr::null_mut::<gss_name_struct>();
         let major = unsafe {
             gss_import_name(
                 &mut minor as *mut OM_uint32,
-                buf.as_ptr(),
+                buf.as_mut_ptr(),
                 ptr::null_mut::<gss_OID_desc>(),
                 &mut name as *mut gss_name_t,
             )
@@ -246,34 +323,20 @@ impl Name {
         }
     }
 
-    pub fn display(&self) -> Result<String, Error> {
+    pub fn display(&self) -> Result<Buf, Error> {
         let mut minor = GSS_S_COMPLETE;
-        let mut buf = gss_buffer_desc_struct {
-            length: 0,
-            value: ptr::null_mut::<std::os::raw::c_void>(),
-        };
+        let mut buf = Buf::empty();
         let mut oid = ptr::null_mut::<gss_OID_desc>();
         let major = unsafe {
             gss_display_name(
                 &mut minor as *mut OM_uint32,
                 **self,
-                &mut buf as gss_buffer_t,
+                buf.as_mut_ptr(),
                 &mut oid as *mut gss_OID,
             )
         };
         if major == GSS_S_COMPLETE {
-            let res = unsafe {
-                slice::from_raw_parts(buf.value.cast::<u8>(), buf.length as usize)
-            };
-            let res = String::from_utf8_lossy(res).into_owned();
-            let major = unsafe {
-                gss_release_buffer(&mut minor as *mut OM_uint32, &mut buf as gss_buffer_t)
-            };
-            if major == GSS_S_COMPLETE {
-                Ok(res)
-            } else {
-                Err(Error { major, minor })
-            }
+            Ok(buf)
         } else {
             Err(Error { major, minor })
         }
@@ -354,34 +417,37 @@ impl Cred {
     }
 }
 
-/*
 fn delete_ctx(mut ctx: gss_ctx_id_t) {
-    let mut minor = GSS_S_COMPLETE;
-    let _major = unsafe {
-        gss_delete_sec_context(
-            &mut minor as *mut OM_uint32,
-            &mut ctx as *mut gss_ctx_id_t,
-            ptr::null_mut::<gss_buffer_desc>(),
-        )
-    };
+    if !ctx.is_null() {
+        let mut minor = GSS_S_COMPLETE;
+        let _major = unsafe {
+            gss_delete_sec_context(
+                &mut minor as *mut OM_uint32,
+                &mut ctx as *mut gss_ctx_id_t,
+                ptr::null_mut::<gss_buffer_desc>(),
+            )
+        };
+    }
 }
 
 enum AcceptCtxInner {
+    Failed(Error),
     Uninit(Cred),
     Partial {
         ctx: gss_ctx_id_t,
         cred: Cred,
+        delegated_cred: Option<Cred>,
     },
     Complete {
         ctx: gss_ctx_id_t,
-        delegated_cred: Cred
+        delegated_cred: Option<Cred>
     }
 }
 
 impl Drop for AcceptCtxInner {
     fn drop(&mut self) {
         match self {
-            AcceptCtxInner::Uninit(_) => (),
+            AcceptCtxInner::Failed(_) | AcceptCtxInner::Uninit(_) => (),
             AcceptCtxInner::Partial { ctx, .. } => delete_ctx(ctx),
             AcceptCtxInner::Complete { ctx, .. } => delete_ctx(ctx),
         }
@@ -404,48 +470,89 @@ impl AcceptCtx {
         AcceptCtx(Arc::new(Mutex::new(AcceptCtxInner(cred.clone()))))
     }
 
-    fn step(&self, tok: &[u8]) -> Result<Option<Vec<u8>>, Error> {
+    fn step(&self, tok: &mut [u8]) -> Result<Option<Buf>, Error> {
         let mut inner = self.lock();
         let mut minor = GSS_S_COMPLETE;
-        let mut (cred, ctx) = match inner {
+        let mut (cred, ctx, current_delegated_cred) = match inner {
             AcceptCtxInner::Uninit(cred) => {
-                (cred.clone(), ptr::null_mut::<gss_ctx_id_struct>())
+                (**cred, ptr::null_mut::<gss_ctx_id_struct>(), None)
             }
-            AcceptCtxInner::Partial { ctx, cred } => (cred.clone(), ctx),
+            AcceptCtxInner::Partial { ctx, cred, delegated_cred } =>
+                (**cred, ctx, delegated_cred.clone()),
             AcceptCtxInner::Complete {..} => return Ok(None),
+            AcceptCtxInner::Failed(e) => return Err(e),
         };
-        let tok = GssBuf::from(tok);
-        let mut out_tok = gss_buffer_desc_struct {
-            length: 0,
-            value: ptr::null_mut(),
-        };
+        let tok = BufRef::from(tok);
+        let mut out_tok = Buf::empty();
         let mut delegated_cred = ptr::null_mut::<gss_cred_id_struct>();
         let major = unsafe {
             gss_accept_sec_context(
                 &mut minor as *mut OM_uint32,
                 &mut ctx as *mut gss_ctx_id_t,
-                **cred,
-                tok.as_ptr(),
+                cred,
+                tok.as_mut_ptr(),
                 ptr::null_mut::<gss_channel_bindings_struct>(),
                 ptr::null_mut::<gss_name_t>(),
                 ptr::null_mut::<gss_OID>(),
-                &mut out_tok as gss_buffer_t,
+                out_tok.as_mut_ptr(),
                 ptr::null_mut::<OM_uint32>(),
                 ptr::null_mut::<OM_uint32>(),
                 &mut delegated_cred as *mut gss_cred_id_t
             )
         };
+        let delegated_cred = {
+            if delegated_cred.is_null() {
+                None
+            } else {
+                match current_delegated_cred {
+                    None => Some(Cred(Arc::new(CredInner(delegated_cred)))),
+                    Some(current) => {
+                        if **current == delegated_cred {
+                            Some(current)
+                        } else {
+                            Some(Cred(Arc::new(CredInner(delegated_cred))))
+                        }
+                    }
+                }
+            }
+        };
+        if gss_error(major) > 0 {
+            let e = Error { major, minor };
+            inner = AcceptCtxInner::Failed(e);
+            delete_ctx(ctx);
+            Err(e)
+        } else if major & _GSS_C_CONTINUE_NEEDED > 0 {
+            inner = AcceptCtxInner::Partial { ctx, delegated_cred };
+            Ok(Some(out_tok))
+        } else {
+            inner = AcceptCtxInner::Complete { ctx, delegated_cred };
+            Ok(None)
+        }
     }
 }
 
-struct Context(gss_ctx_id_t);
+enum InitiateCtxInner {
+    Failed(Error),
+    Uninit(Option<Cred>),
+    Partial {
+        ctx: gss_ctx_id_t,
+        cred: Option<Cred>
+    }
+    Complete(gss_ctx_id_t)
+}
 
-impl Drop for Context {
+impl Drop for InitiateCtxInner {
     fn drop(&mut self) {
-        delete_ctx(self.0)
+        match self {
+            AcceptCtxInner::Failed(_) | AcceptCtxInner::Uninit(_) => (),
+            AcceptCtxInner::Partial { ctx, .. } => delete_ctx(ctx),
+            AcceptCtxInner::Complete(ctx) => delete_ctx(ctx),
+        }
     }
 }
-*/
+
+#[derive(Clone)]
+struct InitiateCtx(Arc<Mutex<InitiateCtxInner>>);
 
 fn run() -> Result<(), Error> {
     dbg!("start");
