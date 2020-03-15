@@ -1,5 +1,11 @@
 use std::ops::Deref;
-use libgssapi::{Name, Cred, CredUsage, Error, ClientCtx, ServerCtx, CtxFlags, Buf};
+use libgssapi::{
+    name::Name,
+    credential::{Cred, CredUsage},
+    error::Error,
+    context::{CtxFlags, ClientCtx, ServerCtx, SecurityContext},
+    util::Buf
+};
 
 fn run() -> Result<(), Error> {
     dbg!("start");
@@ -33,6 +39,7 @@ fn run() -> Result<(), Error> {
         }
     }
     dbg!("security context created successfully");
+    let secret_msg = client_ctx.wrap(true, b"super secret message")?;
     Ok(())
 }
 
