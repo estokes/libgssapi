@@ -1,7 +1,7 @@
 #[macro_use] extern crate bitflags;
 
-mod error;
-mod util;
-mod name;
-mod credential;
-mod context;
+pub mod error;
+pub mod util;
+pub mod name;
+pub mod credential;
+pub mod context;

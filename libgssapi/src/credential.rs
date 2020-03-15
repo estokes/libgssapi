@@ -1,4 +1,4 @@
-use crate::{error::Error, name::Name, utils::OidSet};
+use crate::{error::Error, name::Name, util::OidSet};
 use libgssapi_sys::{
     gss_OID_set, gss_acquire_cred, gss_cred_id_struct, gss_cred_id_t, gss_cred_usage_t,
     gss_mech_krb5, gss_name_struct, gss_release_cred, OM_uint32, GSS_C_ACCEPT,

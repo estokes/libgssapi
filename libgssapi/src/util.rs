@@ -88,7 +88,7 @@ impl Buf {
     }
 }
 
-struct OidSet(gss_OID_set);
+pub(crate) struct OidSet(gss_OID_set);
 
 impl Drop for OidSet {
     fn drop(&mut self) {
@@ -104,7 +104,7 @@ impl Drop for OidSet {
 }
 
 impl OidSet {
-    pub fn new() -> Result<OidSet, Error> {
+    pub(crate) fn new() -> Result<OidSet, Error> {
         let mut minor = GSS_S_COMPLETE;
         let mut out = ptr::null_mut::<gss_OID_set_desc>();
         let major = unsafe {
@@ -120,11 +120,11 @@ impl OidSet {
         }
     }
 
-    fn as_ptr(&mut self) -> gss_OID_set {
+    pub(crate) fn as_ptr(&mut self) -> gss_OID_set {
         self.0
     }
 
-    pub fn add(&mut self, id: gss_OID) -> Result<(), Error> {
+    pub(crate) fn add(&mut self, id: gss_OID) -> Result<(), Error> {
         let mut minor = GSS_S_COMPLETE;
         let major = unsafe {
             gss_add_oid_set_member(
@@ -140,7 +140,7 @@ impl OidSet {
         }
     }
 
-    pub fn contains(&self, id: gss_OID) -> Result<bool, Error> {
+    pub(crate) fn contains(&self, id: gss_OID) -> Result<bool, Error> {
         let mut minor = GSS_S_COMPLETE;
         let mut present = 0;
         let major = unsafe {

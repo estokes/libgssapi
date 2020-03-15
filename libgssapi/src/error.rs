@@ -1,4 +1,4 @@
-use crate::utils::Buf;
+use crate::util::Buf;
 use libgssapi_sys::{
     gss_display_status, OM_uint32, GSS_C_CALLING_ERROR_OFFSET, GSS_C_GSS_CODE,
     GSS_C_ROUTINE_ERROR_OFFSET, GSS_S_COMPLETE, _GSS_C_CALLING_ERROR_MASK,
@@ -6,7 +6,7 @@ use libgssapi_sys::{
 };
 use std::{fmt, ptr, error};
 
-fn gss_error(x: OM_uint32) -> OM_uint32 {
+pub(crate) fn gss_error(x: OM_uint32) -> OM_uint32 {
     x & ((_GSS_C_CALLING_ERROR_MASK << GSS_C_CALLING_ERROR_OFFSET)
         | (_GSS_C_ROUTINE_ERROR_MASK << GSS_C_ROUTINE_ERROR_OFFSET))
 }
