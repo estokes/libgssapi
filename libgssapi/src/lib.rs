@@ -438,6 +438,32 @@ fn delete_ctx(mut ctx: gss_ctx_id_t) {
     }
 }
 
+fn wrap(ctx: gss_ctx_id_t, encrypt: bool, msg: &[u8]) -> Result<Buf, Error> {
+    let mut minor = GSS_S_COMPLETE;
+    let mut msg = BufRef::from(msg);
+    let mut enc_msg = Buf::empty();
+    let major = unsafe {
+        gss_wrap(
+            &mut minor as *mut OM_uint32,
+            ctx,
+            if encrypt { 1 } else { 0 },
+            GSS_C_QOP_DEFAULT,
+            msg.as_mut_ptr(),
+            ptr::null_mut(),
+            enc_msg.as_mut_ptr()
+        )
+    };
+    if gss_error(major) > 0 {
+        Err(Error { major, minor })
+    } else {
+        Ok(enc_msg)
+    }
+}
+
+pub trait SecurityContext {
+    fn wrap(&self, encrypt: bool, msg: &[u8]) -> Result<Buf, Error>;
+}
+
 enum ServerCtxInner {
     Failed(Error),
     Uninit(Cred),
@@ -557,6 +583,20 @@ impl ServerCtx {
     }
 }
 
+impl SecurityContext for ServerCtx {
+    fn wrap(&self, encrypt: bool, msg: &[u8]) -> Result<Buf, Error> {
+        let inner = self.0.lock();
+        let ctx = match *inner {
+            ServerCtxInner::Failed(e) => return Err(e),
+            ServerCtxInner::Uninit(_) =>
+                return Err(Error {major: _GSS_S_NO_CONTEXT, minor: 0}),
+            ServerCtxInner::Partial {ctx, ..} => ctx,
+            ServerCtxInner::Complete {ctx, ..} => ctx,
+        };
+        wrap(ctx, encrypt, msg)
+    }
+}
+
 enum ClientCtxInner {
     Failed(Error),
     Uninit {
@@ -662,5 +702,19 @@ impl ClientCtx {
                 Ok(None)
             }
         }
+    }
+}
+
+impl SecurityContext for ClientCtx {
+    fn wrap(&self, encrypt: bool, msg: &[u8]) -> Result<Buf, Error> {
+        let inner = self.0.lock();
+        let ctx = match *inner {
+            ClientCtxInner::Uninit {..} =>
+                return Err(Error { major: _GSS_S_NO_CONTEXT, minor: 0 }),
+            ClientCtxInner::Failed(e) => return Err(e),
+            ClientCtxInner::Partial {ctx, ..} => ctx,
+            ClientCtxInner::Complete(ctx) => ctx,
+        };
+        wrap(ctx, encrypt, msg)
     }
 }

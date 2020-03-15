@@ -24,7 +24,6 @@ fn run() -> Result<(), Error> {
     let server_ctx = ServerCtx::new(&server_cred);
     let mut server_tok: Option<Buf> = None;
     loop {
-        dbg!("loop");
         match client_ctx.step(server_tok.as_ref().map(|b| b.deref()))? {
             None => break,
             Some(client_tok) => match server_ctx.step(&*client_tok)? {
