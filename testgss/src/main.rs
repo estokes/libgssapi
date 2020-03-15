@@ -1,8 +1,9 @@
-use libgssapi::{Name, Cred, CredUsage};
+use std::borrow::Borrow;
+use libgssapi::{Name, Cred, CredUsage, Error, ClientCtx, ServerCtx, CtxFlags, Buf};
 
 fn run() -> Result<(), Error> {
     dbg!("start");
-    let name = Name::new("nfs/ken-ohki.ryu-oh.org")?;
+    let name = Name::new(b"nfs/ken-ohki.ryu-oh.org")?;
     dbg!("import name");
     let cname = name.canonicalize()?;
     dbg!("canonicalize name");
@@ -12,10 +13,23 @@ fn run() -> Result<(), Error> {
     dbg!("display cname");
     println!(
         "name: {}, cname: {}",
-        String::from_utf8_lossy(&name_s),
-        String::from_utf8_lossy(&cname_s)
+        String::from_utf8_lossy(name_s.borrow()),
+        String::from_utf8_lossy(cname_s.borrow())
     );
-    let cred = Cred::acquire(Some(&cname), None, CredUsage::Accept)?;
+    let server_cred = Cred::acquire(Some(&cname), None, CredUsage::Accept)?;
+    dbg!("acquired server credentials");
+    let client_cred = Cred::acquire(None, None, CredUsage::Initiate)?;
+    dbg!("acquired client credentials");
+    let client_ctx = ClientCtx::new(&client_cred, &cname, CtxFlags::GSS_C_MUTUAL_FLAG);
+    let server_ctx = ServerCtx::new(&server_cred);
+    let mut server_tok: Option<Buf> = None;
+    loop {
+        match client_ctx.step(server_tok.as_ref().map(|b| b.borrow()))? {
+            Some(client_tok) => { server_tok = server_ctx.step(client_tok.borrow())?; }
+            None => break
+        }
+    }
+    dbg!("security context created successfully");
     Ok(())
 }
 

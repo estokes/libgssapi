@@ -1,4 +1,5 @@
-#[macro_use] extern crate bitflags;
+#[macro_use]
+extern crate bitflags;
 
 use libgssapi_sys::*;
 use parking_lot::Mutex;
@@ -7,6 +8,7 @@ use std::{
     clone::Clone,
     error, fmt,
     marker::PhantomData,
+    mem,
     ops::{Deref, Drop},
     ptr,
     result::Result,
@@ -16,7 +18,7 @@ use std::{
 
 fn gss_error(x: OM_uint32) -> OM_uint32 {
     x & ((_GSS_C_CALLING_ERROR_MASK << GSS_C_CALLING_ERROR_OFFSET)
-         | (_GSS_C_ROUTINE_ERROR_MASK << GSS_C_ROUTINE_ERROR_OFFSET))
+        | (_GSS_C_ROUTINE_ERROR_MASK << GSS_C_ROUTINE_ERROR_OFFSET))
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -86,25 +88,15 @@ struct BufRef<'a>(gss_buffer_desc_struct, PhantomData<&'a mut [u8]>);
 
 impl<'a> Borrow<[u8]> for BufRef<'a> {
     fn borrow(&self) -> &[u8] {
-        unsafe {
-            slice::from_raw_parts(self.0.value.cast(), self.0.length as usize)
-        }
+        unsafe { slice::from_raw_parts(self.0.value.cast(), self.0.length as usize) }
     }
 }
 
-impl<'a> BorrowMut<[u8]> for BufRef<'a> {
-    fn borrow_mut(&mut self) -> &mut [u8] {
-        unsafe {
-            slice::from_raw_parts_mut(self.0.value.cast(), self.0.length as usize)
-        }
-    }
-}
-
-impl<'a> From<&'a mut [u8]> for BufRef<'a> {
-    fn from(s: &mut [u8]) -> Self {
+impl<'a> From<&'a [u8]> for BufRef<'a> {
+    fn from(s: &[u8]) -> Self {
         let gss_buf = gss_buffer_desc_struct {
             length: s.len() as size_t,
-            value: s.as_mut_ptr().cast(),
+            value: unsafe { mem::transmute(s.as_ptr()) },
         };
         BufRef(gss_buf, PhantomData)
     }
@@ -124,17 +116,13 @@ pub struct Buf(gss_buffer_desc);
 
 impl Borrow<[u8]> for Buf {
     fn borrow(&self) -> &[u8] {
-        unsafe {
-            slice::from_raw_parts(self.0.value.cast(), self.0.length as usize)
-        }
+        unsafe { slice::from_raw_parts(self.0.value.cast(), self.0.length as usize) }
     }
 }
 
 impl BorrowMut<[u8]> for Buf {
     fn borrow_mut(&mut self) -> &mut [u8] {
-        unsafe {
-            slice::from_raw_parts_mut(self.0.value.cast(), self.0.length as usize)
-        }
+        unsafe { slice::from_raw_parts_mut(self.0.value.cast(), self.0.length as usize) }
     }
 }
 
@@ -145,7 +133,7 @@ impl Drop for Buf {
             let _major = unsafe {
                 gss_release_buffer(
                     &mut minor as *mut OM_uint32,
-                    &mut self.0 as gss_buffer_t
+                    &mut self.0 as gss_buffer_t,
                 )
             };
             // CR estokes: What to do if this fails?
@@ -267,7 +255,7 @@ impl Deref for Name {
 }
 
 impl Name {
-    pub fn new(s: &mut [u8]) -> Result<Self, Error> {
+    pub fn new(s: &[u8]) -> Result<Self, Error> {
         let mut buf = BufRef::from(s);
         let mut minor = GSS_S_COMPLETE;
         let mut name = ptr::null_mut::<gss_name_struct>();
@@ -428,7 +416,7 @@ bitflags! {
         const GSS_C_ANON_FLAG = GSS_C_ANON_FLAG;
         const GSS_C_PROT_READY_FLAG = GSS_C_PROT_READY_FLAG;
         const GSS_C_TRANS_FLAG = GSS_C_TRANS_FLAG;
-        const GSS_C_DELEG_POLICY_FLAG = GSS_C_DELEG_POLICY_FLAG;        
+        const GSS_C_DELEG_POLICY_FLAG = GSS_C_DELEG_POLICY_FLAG;
     }
 }
 
@@ -458,7 +446,7 @@ enum ServerCtxInner {
         ctx: gss_ctx_id_t,
         delegated_cred: Option<Cred>,
         flags: CtxFlags,
-    }
+    },
 }
 
 impl Drop for ServerCtxInner {
@@ -474,35 +462,31 @@ impl Drop for ServerCtxInner {
 #[derive(Clone)]
 pub struct ServerCtx(Arc<Mutex<ServerCtxInner>>);
 
-impl Deref for ServerCtx {
-    type Target = Mutex<ServerCtxInner>;
-
-    fn deref(&self) -> &Self::Target {
-        &*self.0
-    }
-}
-
 impl ServerCtx {
     pub fn new(cred: &Cred) -> ServerCtx {
         ServerCtx(Arc::new(Mutex::new(ServerCtxInner::Uninit(cred.clone()))))
     }
 
-    pub fn step(&self, tok: &mut [u8]) -> Result<Option<Buf>, Error> {
-        let mut inner = self.lock();
+    pub fn step(&self, tok: &[u8]) -> Result<Option<Buf>, Error> {
+        let mut inner = self.0.lock();
         let mut minor = GSS_S_COMPLETE;
         let (cred, mut ctx, current_delegated_cred, mut flags) = match *inner {
-            ServerCtxInner::Uninit(cred) => {
-                (cred.clone(),
-                 ptr::null_mut::<gss_ctx_id_struct>(),
-                 None,
-                 CtxFlags::empty())
-            }
-            ServerCtxInner::Partial { ctx, cred, delegated_cred, flags } =>
-                (cred.clone(), ctx, delegated_cred.clone(), flags),
-            ServerCtxInner::Complete {..} => return Ok(None),
+            ServerCtxInner::Uninit(ref cred) => (
+                cred.clone(),
+                ptr::null_mut::<gss_ctx_id_struct>(),
+                None,
+                CtxFlags::empty(),
+            ),
+            ServerCtxInner::Partial {
+                ctx,
+                ref cred,
+                ref delegated_cred,
+                flags,
+            } => (cred.clone(), ctx, delegated_cred.clone(), flags),
+            ServerCtxInner::Complete { .. } => return Ok(None),
             ServerCtxInner::Failed(e) => return Err(e),
         };
-        let tok = BufRef::from(tok);
+        let mut tok = BufRef::from(tok);
         let mut out_tok = Buf::empty();
         let mut delegated_cred = ptr::null_mut::<gss_cred_id_struct>();
         let mut flag_bits: u32 = 0;
@@ -518,7 +502,7 @@ impl ServerCtx {
                 out_tok.as_mut_ptr(),
                 &mut flag_bits as *mut OM_uint32,
                 ptr::null_mut::<OM_uint32>(),
-                &mut delegated_cred as *mut gss_cred_id_t
+                &mut delegated_cred as *mut gss_cred_id_t,
             )
         };
         let delegated_cred = {
@@ -546,10 +530,19 @@ impl ServerCtx {
             delete_ctx(ctx);
             Err(e)
         } else if major & _GSS_S_CONTINUE_NEEDED > 0 {
-            *inner = ServerCtxInner::Partial { ctx, cred, delegated_cred, flags };
+            *inner = ServerCtxInner::Partial {
+                ctx,
+                cred,
+                delegated_cred,
+                flags,
+            };
             Ok(Some(out_tok))
         } else {
-            *inner = ServerCtxInner::Complete { ctx, delegated_cred, flags };
+            *inner = ServerCtxInner::Complete {
+                ctx,
+                delegated_cred,
+                flags,
+            };
             Ok(None)
         }
     }
@@ -568,15 +561,15 @@ enum ClientCtxInner {
         target: Name,
         flags: CtxFlags,
     },
-    Complete(gss_ctx_id_t)
+    Complete(gss_ctx_id_t),
 }
 
 impl Drop for ClientCtxInner {
     fn drop(&mut self) {
         match self {
-            ClientCtxInner::Failed(_) | ClientCtxInner::Uninit {..} => (),
-            ClientCtxInner::Partial { ctx, .. } => delete_ctx(ctx),
-            ClientCtxInner::Complete(ctx) => delete_ctx(ctx),
+            ClientCtxInner::Failed(_) | ClientCtxInner::Uninit { .. } => (),
+            ClientCtxInner::Partial { ctx, .. } => delete_ctx(*ctx),
+            ClientCtxInner::Complete(ctx) => delete_ctx(*ctx),
         }
     }
 }
@@ -584,38 +577,41 @@ impl Drop for ClientCtxInner {
 #[derive(Clone)]
 pub struct ClientCtx(Arc<Mutex<ClientCtxInner>>);
 
-impl Deref for ClientCtx {
-    type Target = Mutex<ClientCtxInner>;
-
-    fn deref(&self) -> &Self::Target {
-        &*self.0
-    }
-}
-
 impl ClientCtx {
     pub fn new(cred: &Cred, target: &Name, flags: CtxFlags) -> ClientCtx {
         let inner = ClientCtxInner::Uninit {
             cred: cred.clone(),
             target: target.clone(),
-            flags
+            flags,
         };
         ClientCtx(Arc::new(Mutex::new(inner)))
     }
 
-    pub fn step(&self, tok: Option<&mut [u8]>) -> Result<Option<Buf>, Error> {
-        let mut inner = self.lock();
+    pub fn step(&self, tok: Option<&[u8]>) -> Result<Option<Buf>, Error> {
+        let mut inner = self.0.lock();
         let mut minor = GSS_S_COMPLETE;
-        let mut tok = tok.map(BufRef::from);
-        let tok_ptr = tok.map(|tok| tok.as_mut_ptr()).unwrap_or(ptr::null_mut());
+        let tok = tok.map(BufRef::from);
+        let tok_ptr = tok
+            .map(|mut tok| tok.as_mut_ptr())
+            .unwrap_or(ptr::null_mut());
         let mut out_tok = Buf::empty();
-        let (mut ctx, cred, target, mut flags) = match *inner {
-            ClientCtxInner::Uninit { cred, target, flags} =>
-                (ptr::null_mut::<gss_ctx_id_struct>(),
-                 cred.clone(),
-                 target.clone(),
-                 flags),
-            ClientCtxInner::Partial { ctx, cred, target, flags } =>
-                (ctx, cred.clone(), target.clone(), flags),
+        let (mut ctx, cred, target, flags) = match *inner {
+            ClientCtxInner::Uninit {
+                ref cred,
+                ref target,
+                flags,
+            } => (
+                ptr::null_mut::<gss_ctx_id_struct>(),
+                cred.clone(),
+                target.clone(),
+                flags,
+            ),
+            ClientCtxInner::Partial {
+                ctx,
+                ref cred,
+                ref target,
+                flags,
+            } => (ctx, cred.clone(), target.clone(), flags),
             ClientCtxInner::Failed(e) => return Err(e),
             ClientCtxInner::Complete(_) => return Ok(None),
         };
@@ -642,7 +638,12 @@ impl ClientCtx {
             delete_ctx(ctx);
             Err(e)
         } else if major & _GSS_S_CONTINUE_NEEDED > 0 {
-            *inner = ClientCtxInner::Partial { ctx, cred, target, flags };
+            *inner = ClientCtxInner::Partial {
+                ctx,
+                cred,
+                target,
+                flags,
+            };
             Ok(Some(out_tok))
         } else {
             *inner = ClientCtxInner::Complete(ctx);
