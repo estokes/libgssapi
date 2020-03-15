@@ -105,5 +105,5 @@ version.texi
 .cargo
 !src/vendor/**
 /src/target/
-
+*.keytab
 no_llvm_build

@@ -1,4 +1,4 @@
-use std::borrow::Borrow;
+use std::ops::Deref;
 use libgssapi::{Name, Cred, CredUsage, Error, ClientCtx, ServerCtx, CtxFlags, Buf};
 
 fn run() -> Result<(), Error> {
@@ -13,8 +13,8 @@ fn run() -> Result<(), Error> {
     dbg!("display cname");
     println!(
         "name: {}, cname: {}",
-        String::from_utf8_lossy(name_s.borrow()),
-        String::from_utf8_lossy(cname_s.borrow())
+        String::from_utf8_lossy(&*name_s),
+        String::from_utf8_lossy(&*cname_s)
     );
     let server_cred = Cred::acquire(Some(&cname), None, CredUsage::Accept)?;
     dbg!("acquired server credentials");
@@ -24,9 +24,13 @@ fn run() -> Result<(), Error> {
     let server_ctx = ServerCtx::new(&server_cred);
     let mut server_tok: Option<Buf> = None;
     loop {
-        match client_ctx.step(server_tok.as_ref().map(|b| b.borrow()))? {
-            Some(client_tok) => { server_tok = server_ctx.step(client_tok.borrow())?; }
-            None => break
+        dbg!("loop");
+        match client_ctx.step(server_tok.as_ref().map(|b| b.deref()))? {
+            None => break,
+            Some(client_tok) => match server_ctx.step(&*client_tok)? {
+                None => break,
+                Some(tok) => { server_tok = Some(tok); }
+            }
         }
     }
     dbg!("security context created successfully");

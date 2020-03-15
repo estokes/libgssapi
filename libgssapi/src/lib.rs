@@ -4,12 +4,11 @@ extern crate bitflags;
 use libgssapi_sys::*;
 use parking_lot::Mutex;
 use std::{
-    borrow::{Borrow, BorrowMut},
     clone::Clone,
     error, fmt,
     marker::PhantomData,
     mem,
-    ops::{Deref, Drop},
+    ops::{Deref, DerefMut, Drop},
     ptr,
     result::Result,
     slice,
@@ -84,10 +83,13 @@ impl fmt::Display for Error {
 impl error::Error for Error {}
 
 #[repr(transparent)]
-struct BufRef<'a>(gss_buffer_desc_struct, PhantomData<&'a mut [u8]>);
+#[derive(Debug)]
+struct BufRef<'a>(gss_buffer_desc_struct, PhantomData<&'a [u8]>);
 
-impl<'a> Borrow<[u8]> for BufRef<'a> {
-    fn borrow(&self) -> &[u8] {
+impl<'a> Deref for BufRef<'a> {
+    type Target = [u8];
+
+    fn deref(&self) -> &Self::Target {
         unsafe { slice::from_raw_parts(self.0.value.cast(), self.0.length as usize) }
     }
 }
@@ -96,7 +98,7 @@ impl<'a> From<&'a [u8]> for BufRef<'a> {
     fn from(s: &[u8]) -> Self {
         let gss_buf = gss_buffer_desc_struct {
             length: s.len() as size_t,
-            value: unsafe { mem::transmute(s.as_ptr()) },
+            value: unsafe { mem::transmute(s.as_ptr()) }, // CR estokes: bad
         };
         BufRef(gss_buf, PhantomData)
     }
@@ -112,16 +114,19 @@ impl<'a> BufRef<'a> {
 /// deallocated via the library routine when it is dropped.
 #[repr(transparent)]
 #[allow(dead_code)]
+#[derive(Debug)]
 pub struct Buf(gss_buffer_desc);
 
-impl Borrow<[u8]> for Buf {
-    fn borrow(&self) -> &[u8] {
+impl Deref for Buf {
+    type Target = [u8];
+
+    fn deref(&self) -> &Self::Target {
         unsafe { slice::from_raw_parts(self.0.value.cast(), self.0.length as usize) }
     }
 }
 
-impl BorrowMut<[u8]> for Buf {
-    fn borrow_mut(&mut self) -> &mut [u8] {
+impl DerefMut for Buf {
+    fn deref_mut(&mut self) -> &mut Self::Target {
         unsafe { slice::from_raw_parts_mut(self.0.value.cast(), self.0.length as usize) }
     }
 }
@@ -543,7 +548,11 @@ impl ServerCtx {
                 delegated_cred,
                 flags,
             };
-            Ok(None)
+            if out_tok.len() > 0 {
+                Ok(Some(out_tok))
+            } else {
+                Ok(None)
+            }
         }
     }
 }
@@ -590,10 +599,7 @@ impl ClientCtx {
     pub fn step(&self, tok: Option<&[u8]>) -> Result<Option<Buf>, Error> {
         let mut inner = self.0.lock();
         let mut minor = GSS_S_COMPLETE;
-        let tok = tok.map(BufRef::from);
-        let tok_ptr = tok
-            .map(|mut tok| tok.as_mut_ptr())
-            .unwrap_or(ptr::null_mut());
+        let mut tok = tok.map(BufRef::from);
         let mut out_tok = Buf::empty();
         let (mut ctx, cred, target, flags) = match *inner {
             ClientCtxInner::Uninit {
@@ -621,11 +627,14 @@ impl ClientCtx {
                 *cred,
                 &mut ctx as *mut gss_ctx_id_t,
                 *target,
-                ptr::null_mut::<gss_OID_desc>(),
+                gss_mech_krb5,
                 flags.bits(),
                 _GSS_C_INDEFINITE,
                 ptr::null_mut::<gss_channel_bindings_struct>(),
-                tok_ptr,
+                match tok {
+                    None => ptr::null_mut::<gss_buffer_desc>(),
+                    Some(ref mut tok) => tok.as_mut_ptr()
+                },
                 ptr::null_mut::<gss_OID>(),
                 out_tok.as_mut_ptr(),
                 ptr::null_mut::<OM_uint32>(),
@@ -647,7 +656,11 @@ impl ClientCtx {
             Ok(Some(out_tok))
         } else {
             *inner = ClientCtxInner::Complete(ctx);
-            Ok(None)
+            if out_tok.len() > 0 {
+                Ok(Some(out_tok))
+            } else {
+                Ok(None)
+            }
         }
     }
 }
