@@ -267,7 +267,7 @@ impl Deref for Name {
 }
 
 impl Name {
-    pub fn new(s: &[u8]) -> Result<Self, Error> {
+    pub fn new(s: &mut [u8]) -> Result<Self, Error> {
         let mut buf = BufRef::from(s);
         let mut minor = GSS_S_COMPLETE;
         let mut name = ptr::null_mut::<gss_name_struct>();
@@ -364,6 +364,7 @@ impl Drop for CredInner {
     }
 }
 
+#[derive(Clone)]
 pub struct Cred(Arc<CredInner>);
 
 impl Deref for Cred {
@@ -464,8 +465,8 @@ impl Drop for ServerCtxInner {
     fn drop(&mut self) {
         match self {
             ServerCtxInner::Failed(_) | ServerCtxInner::Uninit(_) => (),
-            ServerCtxInner::Partial { ctx, .. } => delete_ctx(ctx),
-            ServerCtxInner::Complete { ctx, .. } => delete_ctx(ctx),
+            ServerCtxInner::Partial { ctx, .. } => delete_ctx(*ctx),
+            ServerCtxInner::Complete { ctx, .. } => delete_ctx(*ctx),
         }
     }
 }
@@ -489,12 +490,15 @@ impl ServerCtx {
     pub fn step(&self, tok: &mut [u8]) -> Result<Option<Buf>, Error> {
         let mut inner = self.lock();
         let mut minor = GSS_S_COMPLETE;
-        let (cred, mut ctx, current_delegated_cred, mut flags) = match inner {
+        let (cred, mut ctx, current_delegated_cred, mut flags) = match *inner {
             ServerCtxInner::Uninit(cred) => {
-                (**cred, ptr::null_mut::<gss_ctx_id_struct>(), None, CtxFlags::empty())
+                (cred.clone(),
+                 ptr::null_mut::<gss_ctx_id_struct>(),
+                 None,
+                 CtxFlags::empty())
             }
             ServerCtxInner::Partial { ctx, cred, delegated_cred, flags } =>
-                (**cred, ctx, delegated_cred.clone(), flags),
+                (cred.clone(), ctx, delegated_cred.clone(), flags),
             ServerCtxInner::Complete {..} => return Ok(None),
             ServerCtxInner::Failed(e) => return Err(e),
         };
@@ -506,7 +510,7 @@ impl ServerCtx {
             gss_accept_sec_context(
                 &mut minor as *mut OM_uint32,
                 &mut ctx as *mut gss_ctx_id_t,
-                cred,
+                *cred,
                 tok.as_mut_ptr(),
                 ptr::null_mut::<gss_channel_bindings_struct>(),
                 ptr::null_mut::<gss_name_t>(),
@@ -524,7 +528,7 @@ impl ServerCtx {
                 match current_delegated_cred {
                     None => Some(Cred(Arc::new(CredInner(delegated_cred)))),
                     Some(current) => {
-                        if **current == delegated_cred {
+                        if *current == delegated_cred {
                             Some(current)
                         } else {
                             Some(Cred(Arc::new(CredInner(delegated_cred))))
@@ -538,14 +542,14 @@ impl ServerCtx {
         }
         if gss_error(major) > 0 {
             let e = Error { major, minor };
-            inner = ServerCtxInner::Failed(e);
+            *inner = ServerCtxInner::Failed(e);
             delete_ctx(ctx);
             Err(e)
         } else if major & _GSS_S_CONTINUE_NEEDED > 0 {
-            inner = ServerCtxInner::Partial { ctx, delegated_cred, flags };
+            *inner = ServerCtxInner::Partial { ctx, cred, delegated_cred, flags };
             Ok(Some(out_tok))
         } else {
-            inner = ServerCtxInner::Complete { ctx, delegated_cred, flags };
+            *inner = ServerCtxInner::Complete { ctx, delegated_cred, flags };
             Ok(None)
         }
     }
