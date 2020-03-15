@@ -1,8 +1,10 @@
-use libgssapi_sys::{gss_release_cred, GSS_S_COMPLETE, gss_cred_id_t};
-use name::Name;
-use std::{
-    sync::Arc,
-}
+use crate::{error::Error, name::Name, utils::OidSet};
+use libgssapi_sys::{
+    gss_OID_set, gss_acquire_cred, gss_cred_id_struct, gss_cred_id_t, gss_cred_usage_t,
+    gss_mech_krb5, gss_name_struct, gss_release_cred, OM_uint32, GSS_C_ACCEPT,
+    GSS_C_BOTH, GSS_C_INITIATE, GSS_S_COMPLETE, _GSS_C_INDEFINITE,
+};
+use std::{ops::Deref, ptr, sync::Arc};
 
 #[derive(Clone, Copy, Debug)]
 pub enum CredUsage {
@@ -76,5 +78,9 @@ impl Cred {
         } else {
             Err(Error { major, minor })
         }
+    }
+
+    pub(crate) fn from_raw(cred: gss_cred_id_t) -> Cred {
+        Cred(Arc::new(CredInner(cred)))
     }
 }

@@ -1,3 +1,21 @@
+use crate::{
+    credential::Cred,
+    error::{gss_error, Error},
+    name::Name,
+    util::{Buf, BufRef},
+};
+use libgssapi_sys::{
+    gss_OID, gss_accept_sec_context, gss_buffer_desc, gss_channel_bindings_struct,
+    gss_cred_id_struct, gss_cred_id_t, gss_ctx_id_struct, gss_ctx_id_t,
+    gss_delete_sec_context, gss_init_sec_context, gss_mech_krb5, gss_name_t, gss_wrap,
+    OM_uint32, GSS_C_ANON_FLAG, GSS_C_CONF_FLAG, GSS_C_DELEG_FLAG,
+    GSS_C_DELEG_POLICY_FLAG, GSS_C_INTEG_FLAG, GSS_C_MUTUAL_FLAG, GSS_C_PROT_READY_FLAG,
+    GSS_C_QOP_DEFAULT, GSS_C_REPLAY_FLAG, GSS_C_SEQUENCE_FLAG, GSS_C_TRANS_FLAG,
+    GSS_S_COMPLETE, _GSS_C_INDEFINITE, _GSS_S_CONTINUE_NEEDED, _GSS_S_NO_CONTEXT,
+};
+use parking_lot::Mutex;
+use std::{ptr, sync::Arc};
+
 bitflags! {
     pub struct CtxFlags: u32 {
         const GSS_C_DELEG_FLAG = GSS_C_DELEG_FLAG;
@@ -38,7 +56,7 @@ fn wrap(ctx: gss_ctx_id_t, encrypt: bool, msg: &[u8]) -> Result<Buf, Error> {
             GSS_C_QOP_DEFAULT,
             msg.as_mut_ptr(),
             ptr::null_mut(),
-            enc_msg.as_mut_ptr()
+            enc_msg.as_mut_ptr(),
         )
     };
     if gss_error(major) > 0 {
@@ -129,12 +147,12 @@ impl ServerCtx {
                 None
             } else {
                 match current_delegated_cred {
-                    None => Some(Cred(Arc::new(CredInner(delegated_cred)))),
+                    None => Some(Cred::from_raw(delegated_cred)),
                     Some(current) => {
                         if *current == delegated_cred {
                             Some(current)
                         } else {
-                            Some(Cred(Arc::new(CredInner(delegated_cred))))
+                            Some(Cred::from_raw(delegated_cred))
                         }
                     }
                 }
@@ -176,10 +194,14 @@ impl SecurityContext for ServerCtx {
         let inner = self.0.lock();
         let ctx = match *inner {
             ServerCtxInner::Failed(e) => return Err(e),
-            ServerCtxInner::Uninit(_) =>
-                return Err(Error {major: _GSS_S_NO_CONTEXT, minor: 0}),
-            ServerCtxInner::Partial {ctx, ..} => ctx,
-            ServerCtxInner::Complete {ctx, ..} => ctx,
+            ServerCtxInner::Uninit(_) => {
+                return Err(Error {
+                    major: _GSS_S_NO_CONTEXT,
+                    minor: 0,
+                })
+            }
+            ServerCtxInner::Partial { ctx, .. } => ctx,
+            ServerCtxInner::Complete { ctx, .. } => ctx,
         };
         wrap(ctx, encrypt, msg)
     }
@@ -261,7 +283,7 @@ impl ClientCtx {
                 ptr::null_mut::<gss_channel_bindings_struct>(),
                 match tok {
                     None => ptr::null_mut::<gss_buffer_desc>(),
-                    Some(ref mut tok) => tok.as_mut_ptr()
+                    Some(ref mut tok) => tok.as_mut_ptr(),
                 },
                 ptr::null_mut::<gss_OID>(),
                 out_tok.as_mut_ptr(),
@@ -297,10 +319,14 @@ impl SecurityContext for ClientCtx {
     fn wrap(&self, encrypt: bool, msg: &[u8]) -> Result<Buf, Error> {
         let inner = self.0.lock();
         let ctx = match *inner {
-            ClientCtxInner::Uninit {..} =>
-                return Err(Error { major: _GSS_S_NO_CONTEXT, minor: 0 }),
+            ClientCtxInner::Uninit { .. } => {
+                return Err(Error {
+                    major: _GSS_S_NO_CONTEXT,
+                    minor: 0,
+                })
+            }
             ClientCtxInner::Failed(e) => return Err(e),
-            ClientCtxInner::Partial {ctx, ..} => ctx,
+            ClientCtxInner::Partial { ctx, .. } => ctx,
             ClientCtxInner::Complete(ctx) => ctx,
         };
         wrap(ctx, encrypt, msg)

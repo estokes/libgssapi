@@ -1,15 +1,19 @@
+use crate::error::Error;
 use libgssapi_sys::{
-    gss_buffer_desc_struct, gss_buffer_desc, gss_buffer_t,
-    gss_OID, gss_OID_set,
+    gss_OID, gss_OID_set, gss_OID_set_desc, gss_add_oid_set_member, gss_buffer_desc,
+    gss_buffer_desc_struct, gss_buffer_t, gss_create_empty_oid_set, gss_release_buffer,
+    gss_release_oid_set, gss_test_oid_set_member, size_t, OM_uint32, GSS_S_COMPLETE,
 };
 use std::{
-    ptr,
+    marker::PhantomData,
+    mem,
     ops::{Deref, DerefMut, Drop},
-}
+    ptr, slice,
+};
 
 #[repr(transparent)]
 #[derive(Debug)]
-struct BufRef<'a>(gss_buffer_desc_struct, PhantomData<&'a [u8]>);
+pub(crate) struct BufRef<'a>(gss_buffer_desc_struct, PhantomData<&'a [u8]>);
 
 impl<'a> Deref for BufRef<'a> {
     type Target = [u8];
@@ -30,7 +34,7 @@ impl<'a> From<&'a [u8]> for BufRef<'a> {
 }
 
 impl<'a> BufRef<'a> {
-    fn as_mut_ptr(&mut self) -> gss_buffer_t {
+    pub(crate) fn as_mut_ptr(&mut self) -> gss_buffer_t {
         &mut self.0 as gss_buffer_t
     }
 }
@@ -72,14 +76,14 @@ impl Drop for Buf {
 }
 
 impl Buf {
-    fn empty() -> Buf {
+    pub(crate) fn empty() -> Buf {
         Buf(gss_buffer_desc {
             length: 0 as size_t,
             value: ptr::null_mut(),
         })
     }
 
-    fn as_mut_ptr(&mut self) -> gss_buffer_t {
+    pub(crate) fn as_mut_ptr(&mut self) -> gss_buffer_t {
         &mut self.0 as gss_buffer_t
     }
 }

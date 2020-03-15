@@ -1,4 +1,13 @@
-
+use crate::{
+    error::Error,
+    util::{Buf, BufRef},
+};
+use libgssapi_sys::{
+    gss_OID, gss_OID_desc, gss_canonicalize_name, gss_display_name, gss_duplicate_name,
+    gss_import_name, gss_mech_krb5, gss_name_struct, gss_name_t, gss_release_name,
+    OM_uint32, GSS_S_COMPLETE,
+};
+use std::{ops::Deref, ptr, sync::Arc};
 
 struct NameInner(gss_name_t);
 
