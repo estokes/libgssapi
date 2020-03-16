@@ -7,7 +7,7 @@ use libgssapi_sys::{
     gss_import_name, gss_mech_krb5, gss_name_struct, gss_name_t, gss_release_name,
     OM_uint32, GSS_S_COMPLETE,
 };
-use std::{ops::Deref, ptr, sync::Arc};
+use std::{ops::Deref, ptr, fmt, sync::Arc};
 
 struct NameInner(gss_name_t);
 
@@ -29,6 +29,33 @@ impl Drop for NameInner {
 
 #[derive(Clone)]
 pub struct Name(Arc<NameInner>);
+
+impl fmt::Debug for Name {
+    fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
+        let mut minor = GSS_S_COMPLETE;
+        let mut buf = Buf::empty();
+        let mut oid = ptr::null_mut::<gss_OID_desc>();
+        let major = unsafe {
+            gss_display_name(
+                &mut minor as *mut OM_uint32,
+                **self,
+                buf.as_mut_ptr(),
+                &mut oid as *mut gss_OID,
+            )
+        };
+        if major == GSS_S_COMPLETE {
+            write!(f, "{}", String::from_utf8_lossy(&*buf))
+        } else {
+            write!(f, "<name can't be displayed>")
+        }
+    }
+}
+
+impl fmt::Display for Name {
+    fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
+        fmt::Debug::fmt(self, f)
+    }
+}
 
 impl Deref for Name {
     type Target = gss_name_t;
@@ -89,25 +116,6 @@ impl Name {
         };
         if major == GSS_S_COMPLETE {
             Ok(Name(Arc::new(NameInner(copy))))
-        } else {
-            Err(Error { major, minor })
-        }
-    }
-
-    pub fn display(&self) -> Result<Buf, Error> {
-        let mut minor = GSS_S_COMPLETE;
-        let mut buf = Buf::empty();
-        let mut oid = ptr::null_mut::<gss_OID_desc>();
-        let major = unsafe {
-            gss_display_name(
-                &mut minor as *mut OM_uint32,
-                **self,
-                buf.as_mut_ptr(),
-                &mut oid as *mut gss_OID,
-            )
-        };
-        if major == GSS_S_COMPLETE {
-            Ok(buf)
         } else {
             Err(Error { major, minor })
         }

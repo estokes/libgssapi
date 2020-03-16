@@ -6,12 +6,13 @@ use crate::{
 };
 use libgssapi_sys::{
     gss_OID, gss_accept_sec_context, gss_buffer_desc, gss_channel_bindings_struct,
-    gss_cred_id_struct, gss_cred_id_t, gss_ctx_id_struct, gss_ctx_id_t,
+    gss_cred_id_struct, gss_cred_id_t, gss_ctx_id_t,
     gss_delete_sec_context, gss_init_sec_context, gss_mech_krb5, gss_name_t, gss_wrap,
+    gss_unwrap,
     OM_uint32, GSS_C_ANON_FLAG, GSS_C_CONF_FLAG, GSS_C_DELEG_FLAG,
     GSS_C_DELEG_POLICY_FLAG, GSS_C_INTEG_FLAG, GSS_C_MUTUAL_FLAG, GSS_C_PROT_READY_FLAG,
     GSS_C_QOP_DEFAULT, GSS_C_REPLAY_FLAG, GSS_C_SEQUENCE_FLAG, GSS_C_TRANS_FLAG,
-    GSS_S_COMPLETE, _GSS_C_INDEFINITE, _GSS_S_CONTINUE_NEEDED, _GSS_S_NO_CONTEXT,
+    GSS_S_COMPLETE, _GSS_C_INDEFINITE, _GSS_S_CONTINUE_NEEDED,
 };
 use parking_lot::Mutex;
 use std::{ptr, sync::Arc};
@@ -32,6 +33,7 @@ bitflags! {
 }
 
 fn delete_ctx(mut ctx: gss_ctx_id_t) {
+    dbg!("delete ctx");
     if !ctx.is_null() {
         let mut minor = GSS_S_COMPLETE;
         let _major = unsafe {
@@ -59,40 +61,59 @@ fn wrap(ctx: gss_ctx_id_t, encrypt: bool, msg: &[u8]) -> Result<Buf, Error> {
             enc_msg.as_mut_ptr(),
         )
     };
-    if gss_error(major) > 0 {
-        Err(Error { major, minor })
-    } else {
+    if major == GSS_S_COMPLETE {
         Ok(enc_msg)
+    } else {
+        Err(Error { major, minor })
+    }
+}
+
+fn unwrap(ctx: gss_ctx_id_t, msg: &[u8]) -> Result<Buf, Error> {
+    let mut minor = GSS_S_COMPLETE;
+    let mut msg = BufRef::from(msg);
+    let mut out = Buf::empty();
+    let major = unsafe {
+        gss_unwrap(
+            &mut minor as *mut OM_uint32,
+            ctx,
+            msg.as_mut_ptr(),
+            out.as_mut_ptr(),
+            ptr::null_mut::<i32>(),
+            ptr::null_mut::<OM_uint32>()
+        )
+    };
+    if major == GSS_S_COMPLETE {
+        Ok(out)
+    } else {
+        Err(Error {major, minor})
     }
 }
 
 pub trait SecurityContext {
     fn wrap(&self, encrypt: bool, msg: &[u8]) -> Result<Buf, Error>;
+    fn unwrap(&self, msg: &[u8]) -> Result<Buf, Error>;
 }
 
-enum ServerCtxInner {
+#[derive(Debug)]
+enum ServerCtxState {
+    Uninitialized,
     Failed(Error),
-    Uninit(Cred),
-    Partial {
-        ctx: gss_ctx_id_t,
-        cred: Cred,
-        delegated_cred: Option<Cred>,
-        flags: CtxFlags,
-    },
-    Complete {
-        ctx: gss_ctx_id_t,
-        delegated_cred: Option<Cred>,
-        flags: CtxFlags,
-    },
+    Partial,
+    Complete,
+}
+
+#[derive(Debug)]
+struct ServerCtxInner {
+    ctx: gss_ctx_id_t,
+    cred: Cred,
+    delegated_cred: Option<Cred>,
+    flags: CtxFlags,
+    state: ServerCtxState,
 }
 
 impl Drop for ServerCtxInner {
     fn drop(&mut self) {
-        match self {
-            ServerCtxInner::Failed(_) | ServerCtxInner::Uninit(_) => (),
-            ServerCtxInner::Partial { ctx, .. } => delete_ctx(*ctx),
-            ServerCtxInner::Complete { ctx, .. } => delete_ctx(*ctx),
-        }
+        delete_ctx(self.ctx);
     }
 }
 
@@ -101,28 +122,23 @@ pub struct ServerCtx(Arc<Mutex<ServerCtxInner>>);
 
 impl ServerCtx {
     pub fn new(cred: &Cred) -> ServerCtx {
-        ServerCtx(Arc::new(Mutex::new(ServerCtxInner::Uninit(cred.clone()))))
+        ServerCtx(Arc::new(Mutex::new(ServerCtxInner {
+            ctx: ptr::null_mut(),
+            cred: cred.clone(),
+            delegated_cred: None,
+            flags: CtxFlags::empty(),
+            state: ServerCtxState::Uninitialized,
+        })))
     }
 
     pub fn step(&self, tok: &[u8]) -> Result<Option<Buf>, Error> {
         let mut inner = self.0.lock();
+        match inner.state {
+            ServerCtxState::Uninitialized | ServerCtxState::Partial => (),
+            ServerCtxState::Failed(e) => return Err(e),
+            ServerCtxState::Complete => return Ok(None),
+        }
         let mut minor = GSS_S_COMPLETE;
-        let (cred, mut ctx, current_delegated_cred, mut flags) = match *inner {
-            ServerCtxInner::Uninit(ref cred) => (
-                cred.clone(),
-                ptr::null_mut::<gss_ctx_id_struct>(),
-                None,
-                CtxFlags::empty(),
-            ),
-            ServerCtxInner::Partial {
-                ctx,
-                ref cred,
-                ref delegated_cred,
-                flags,
-            } => (cred.clone(), ctx, delegated_cred.clone(), flags),
-            ServerCtxInner::Complete { .. } => return Ok(None),
-            ServerCtxInner::Failed(e) => return Err(e),
-        };
         let mut tok = BufRef::from(tok);
         let mut out_tok = Buf::empty();
         let mut delegated_cred = ptr::null_mut::<gss_cred_id_struct>();
@@ -130,8 +146,8 @@ impl ServerCtx {
         let major = unsafe {
             gss_accept_sec_context(
                 &mut minor as *mut OM_uint32,
-                &mut ctx as *mut gss_ctx_id_t,
-                *cred,
+                &mut inner.ctx as *mut gss_ctx_id_t,
+                *inner.cred,
                 tok.as_mut_ptr(),
                 ptr::null_mut::<gss_channel_bindings_struct>(),
                 ptr::null_mut::<gss_name_t>(),
@@ -142,44 +158,30 @@ impl ServerCtx {
                 &mut delegated_cred as *mut gss_cred_id_t,
             )
         };
-        let delegated_cred = {
-            if delegated_cred.is_null() {
-                None
-            } else {
-                match current_delegated_cred {
-                    None => Some(Cred::from_raw(delegated_cred)),
-                    Some(current) => {
-                        if *current == delegated_cred {
-                            Some(current)
-                        } else {
-                            Some(Cred::from_raw(delegated_cred))
-                        }
+        if !delegated_cred.is_null() {
+            match &inner.delegated_cred {
+                None => {
+                    inner.delegated_cred = Some(Cred::from_raw(delegated_cred));
+                }
+                Some(current) => {
+                    if **current != delegated_cred {
+                        inner.delegated_cred = Some(Cred::from_raw(delegated_cred));
                     }
                 }
             }
-        };
+        }
         if let Some(new_flags) = CtxFlags::from_bits(flag_bits) {
-            flags.insert(new_flags);
+            inner.flags.insert(new_flags);
         }
         if gss_error(major) > 0 {
             let e = Error { major, minor };
-            *inner = ServerCtxInner::Failed(e);
-            delete_ctx(ctx);
+            inner.state = ServerCtxState::Failed(e);
             Err(e)
         } else if major & _GSS_S_CONTINUE_NEEDED > 0 {
-            *inner = ServerCtxInner::Partial {
-                ctx,
-                cred,
-                delegated_cred,
-                flags,
-            };
+            inner.state = ServerCtxState::Partial;
             Ok(Some(out_tok))
         } else {
-            *inner = ServerCtxInner::Complete {
-                ctx,
-                delegated_cred,
-                flags,
-            };
+            inner.state = ServerCtxState::Complete;
             if out_tok.len() > 0 {
                 Ok(Some(out_tok))
             } else {
@@ -192,44 +194,35 @@ impl ServerCtx {
 impl SecurityContext for ServerCtx {
     fn wrap(&self, encrypt: bool, msg: &[u8]) -> Result<Buf, Error> {
         let inner = self.0.lock();
-        let ctx = match *inner {
-            ServerCtxInner::Failed(e) => return Err(e),
-            ServerCtxInner::Uninit(_) => {
-                return Err(Error {
-                    major: _GSS_S_NO_CONTEXT,
-                    minor: 0,
-                })
-            }
-            ServerCtxInner::Partial { ctx, .. } => ctx,
-            ServerCtxInner::Complete { ctx, .. } => ctx,
-        };
-        wrap(ctx, encrypt, msg)
+        wrap(inner.ctx, encrypt, msg)
+    }
+
+    fn unwrap(&self, msg: &[u8]) -> Result<Buf, Error> {
+        let inner = self.0.lock();
+        unwrap(inner.ctx, msg)
     }
 }
 
-enum ClientCtxInner {
+#[derive(Debug)]
+enum ClientCtxState {
+    Uninitialized,
     Failed(Error),
-    Uninit {
-        cred: Cred,
-        target: Name,
-        flags: CtxFlags,
-    },
-    Partial {
-        ctx: gss_ctx_id_t,
-        cred: Cred,
-        target: Name,
-        flags: CtxFlags,
-    },
-    Complete(gss_ctx_id_t),
+    Partial,
+    Complete,
+}
+
+#[derive(Debug)]
+struct ClientCtxInner {
+    ctx: gss_ctx_id_t,
+    cred: Cred,
+    target: Name,
+    flags: CtxFlags,
+    state: ClientCtxState,
 }
 
 impl Drop for ClientCtxInner {
     fn drop(&mut self) {
-        match self {
-            ClientCtxInner::Failed(_) | ClientCtxInner::Uninit { .. } => (),
-            ClientCtxInner::Partial { ctx, .. } => delete_ctx(*ctx),
-            ClientCtxInner::Complete(ctx) => delete_ctx(*ctx),
-        }
+        delete_ctx(self.ctx);
     }
 }
 
@@ -238,47 +231,34 @@ pub struct ClientCtx(Arc<Mutex<ClientCtxInner>>);
 
 impl ClientCtx {
     pub fn new(cred: &Cred, target: &Name, flags: CtxFlags) -> ClientCtx {
-        let inner = ClientCtxInner::Uninit {
+        let inner = ClientCtxInner {
+            ctx: ptr::null_mut(),
             cred: cred.clone(),
             target: target.clone(),
             flags,
+            state: ClientCtxState::Uninitialized,
         };
         ClientCtx(Arc::new(Mutex::new(inner)))
     }
 
     pub fn step(&self, tok: Option<&[u8]>) -> Result<Option<Buf>, Error> {
         let mut inner = self.0.lock();
+        match inner.state {
+            ClientCtxState::Uninitialized | ClientCtxState::Partial => (),
+            ClientCtxState::Failed(e) => return Err(e),
+            ClientCtxState::Complete => return Ok(None),
+        };
         let mut minor = GSS_S_COMPLETE;
         let mut tok = tok.map(BufRef::from);
         let mut out_tok = Buf::empty();
-        let (mut ctx, cred, target, flags) = match *inner {
-            ClientCtxInner::Uninit {
-                ref cred,
-                ref target,
-                flags,
-            } => (
-                ptr::null_mut::<gss_ctx_id_struct>(),
-                cred.clone(),
-                target.clone(),
-                flags,
-            ),
-            ClientCtxInner::Partial {
-                ctx,
-                ref cred,
-                ref target,
-                flags,
-            } => (ctx, cred.clone(), target.clone(), flags),
-            ClientCtxInner::Failed(e) => return Err(e),
-            ClientCtxInner::Complete(_) => return Ok(None),
-        };
         let major = unsafe {
             gss_init_sec_context(
                 &mut minor as *mut OM_uint32,
-                *cred,
-                &mut ctx as *mut gss_ctx_id_t,
-                *target,
+                *inner.cred,
+                &mut inner.ctx as *mut gss_ctx_id_t,
+                *inner.target,
                 gss_mech_krb5,
-                flags.bits(),
+                inner.flags.bits(),
                 _GSS_C_INDEFINITE,
                 ptr::null_mut::<gss_channel_bindings_struct>(),
                 match tok {
@@ -293,19 +273,13 @@ impl ClientCtx {
         };
         if gss_error(major) > 0 {
             let e = Error { major, minor };
-            *inner = ClientCtxInner::Failed(e);
-            delete_ctx(ctx);
+            inner.state = ClientCtxState::Failed(e);
             Err(e)
         } else if major & _GSS_S_CONTINUE_NEEDED > 0 {
-            *inner = ClientCtxInner::Partial {
-                ctx,
-                cred,
-                target,
-                flags,
-            };
+            inner.state = ClientCtxState::Partial;
             Ok(Some(out_tok))
         } else {
-            *inner = ClientCtxInner::Complete(ctx);
+            inner.state = ClientCtxState::Complete;
             if out_tok.len() > 0 {
                 Ok(Some(out_tok))
             } else {
@@ -318,17 +292,11 @@ impl ClientCtx {
 impl SecurityContext for ClientCtx {
     fn wrap(&self, encrypt: bool, msg: &[u8]) -> Result<Buf, Error> {
         let inner = self.0.lock();
-        let ctx = match *inner {
-            ClientCtxInner::Uninit { .. } => {
-                return Err(Error {
-                    major: _GSS_S_NO_CONTEXT,
-                    minor: 0,
-                })
-            }
-            ClientCtxInner::Failed(e) => return Err(e),
-            ClientCtxInner::Partial { ctx, .. } => ctx,
-            ClientCtxInner::Complete(ctx) => ctx,
-        };
-        wrap(ctx, encrypt, msg)
+        wrap(inner.ctx, encrypt, msg)
+    }
+
+    fn unwrap(&self, msg: &[u8]) -> Result<Buf, Error> {
+        let inner = self.0.lock();
+        unwrap(inner.ctx, msg)
     }
 }

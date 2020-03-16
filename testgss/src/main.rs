@@ -13,15 +13,7 @@ fn run() -> Result<(), Error> {
     dbg!("import name");
     let cname = name.canonicalize()?;
     dbg!("canonicalize name");
-    let name_s = name.display()?;
-    dbg!("display name");
-    let cname_s = cname.display()?;
-    dbg!("display cname");
-    println!(
-        "name: {}, cname: {}",
-        String::from_utf8_lossy(&*name_s),
-        String::from_utf8_lossy(&*cname_s)
-    );
+    println!("name: {}, cname: {}", name, cname);
     let server_cred = Cred::acquire(Some(&cname), None, CredUsage::Accept)?;
     dbg!("acquired server credentials");
     let client_cred = Cred::acquire(None, None, CredUsage::Initiate)?;
@@ -40,6 +32,8 @@ fn run() -> Result<(), Error> {
     }
     dbg!("security context created successfully");
     let secret_msg = client_ctx.wrap(true, b"super secret message")?;
+    let decoded_msg = server_ctx.unwrap(&*secret_msg)?;
+    println!("{}", String::from_utf8_lossy(&*decoded_msg));
     Ok(())
 }
 

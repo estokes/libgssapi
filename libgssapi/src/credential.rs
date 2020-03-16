@@ -4,7 +4,7 @@ use libgssapi_sys::{
     gss_mech_krb5, gss_name_struct, gss_release_cred, OM_uint32, GSS_C_ACCEPT,
     GSS_C_BOTH, GSS_C_INITIATE, GSS_S_COMPLETE, _GSS_C_INDEFINITE,
 };
-use std::{ops::Deref, ptr, sync::Arc};
+use std::{ops::Deref, ptr, fmt, sync::Arc};
 
 #[derive(Clone, Copy, Debug)]
 pub enum CredUsage {
@@ -31,6 +31,13 @@ impl Drop for CredInner {
 #[derive(Clone)]
 pub struct Cred(Arc<CredInner>);
 
+impl fmt::Debug for Cred {
+    fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
+        write!(f, "<gss credential>")
+    }
+}
+
+// CR estokes: improve this, it can be much much better
 impl Deref for Cred {
     type Target = gss_cred_id_t;
 

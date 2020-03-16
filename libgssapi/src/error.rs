@@ -18,7 +18,7 @@ pub struct Error {
 }
 
 impl Error {
-    fn fmt_code(f: &mut fmt::Formatter<'_>, code: u32) -> fmt::Result {
+    fn fmt_code(f: &mut fmt::Formatter<'_>, code: u32, name: &str) -> fmt::Result {
         let mut message_context: OM_uint32 = 0;
         loop {
             let mut minor = GSS_S_COMPLETE as OM_uint32;
@@ -35,10 +35,10 @@ impl Error {
             };
             if major == GSS_S_COMPLETE {
                 let s = String::from_utf8_lossy(&*buf);
-                let res = write!(f, "gssapi error {}\n", s);
+                let res = write!(f, "gssapi {} error {}\n", name, s);
                 res?
             } else {
-                write!(f, "gssapi unknown error code {}\n", code)?;
+                write!(f, "gssapi unknown {} error code {}\n", name, code)?;
                 break;
             }
             if message_context == 0 {
@@ -51,8 +51,8 @@ impl Error {
 
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        Error::fmt_code(f, self.major)?;
-        Ok(Error::fmt_code(f, self.minor)?)
+        Error::fmt_code(f, self.major, "major")?;
+        Ok(Error::fmt_code(f, self.minor, "minor")?)
     }
 }
 
