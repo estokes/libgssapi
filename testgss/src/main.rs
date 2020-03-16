@@ -33,7 +33,7 @@ fn run() -> Result<(), Error> {
     dbg!("security context created successfully");
     let secret_msg = client_ctx.wrap(true, b"super secret message")?;
     let decoded_msg = server_ctx.unwrap(&*secret_msg)?;
-    println!("{}", String::from_utf8_lossy(&*decoded_msg));
+    println!("the decrypted message is: '{}'", String::from_utf8_lossy(&*decoded_msg));
     Ok(())
 }
 

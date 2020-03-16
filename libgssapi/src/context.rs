@@ -33,7 +33,6 @@ bitflags! {
 }
 
 fn delete_ctx(mut ctx: gss_ctx_id_t) {
-    dbg!("delete ctx");
     if !ctx.is_null() {
         let mut minor = GSS_S_COMPLETE;
         let _major = unsafe {
