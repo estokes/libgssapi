@@ -8,3 +8,4 @@ edition = "2018"
 libgssapi-sys = { path = "../libgssapi-sys" }
 parking_lot = "0.10"
 bitflags = "1.2"
+lazy_static = "1.4"

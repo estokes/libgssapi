@@ -66,7 +66,7 @@ impl Deref for Name {
 }
 
 impl Name {
-    pub fn new(s: &[u8]) -> Result<Self, Error> {
+    pub fn new(s: &[u8], kind: Option<gss_OID>) -> Result<Self, Error> {
         let mut buf = BufRef::from(s);
         let mut minor = GSS_S_COMPLETE;
         let mut name = ptr::null_mut::<gss_name_struct>();
@@ -74,7 +74,10 @@ impl Name {
             gss_import_name(
                 &mut minor as *mut OM_uint32,
                 buf.as_mut_ptr(),
-                ptr::null_mut::<gss_OID_desc>(),
+                match kind {
+                    None => ptr::null_mut::<gss_OID_desc>(),
+                    Some(p) => p,
+                },
                 &mut name as *mut gss_name_t,
             )
         };
