@@ -8,7 +8,6 @@ description = "A safe binding to gssapi"
 homepage = "https://github.com/estokes/libgssapi"
 documentation = "https://docs.rs/libgssapi"
 repository = "https://github.com/estokes/libgssapi"
-readme = "README.md"
 keywords = ["gssapi", "sspi", "kerberos", "krb5", "authentication"]
 categories = ["api-bindings", "authentication", "cryptography", "os::unix-apis"]
 
