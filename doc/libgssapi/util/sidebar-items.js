@@ -1,0 +1,1 @@
+initSidebarItems({"struct":[["Buf","This represents an owned buffer we got from gssapi, it will be deallocated via the library routine when it is dropped."]]});

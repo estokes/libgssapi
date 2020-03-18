@@ -1,0 +1,12 @@
+var ALIASES = {};
+ALIASES["bitflags"] = {};
+ALIASES["cfg_if"] = {};
+ALIASES["lazy_static"] = {};
+ALIASES["libc"] = {};
+ALIASES["libgssapi"] = {};
+ALIASES["libgssapi_sys"] = {};
+ALIASES["lock_api"] = {};
+ALIASES["parking_lot"] = {};
+ALIASES["parking_lot_core"] = {};
+ALIASES["scopeguard"] = {};
+ALIASES["smallvec"] = {};
