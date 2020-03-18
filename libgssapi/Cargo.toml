@@ -12,7 +12,7 @@ keywords = ["gssapi", "sspi", "kerberos", "krb5", "authentication"]
 categories = ["api-bindings", "authentication", "cryptography", "os::unix-apis"]
 
 [dependencies]
-libgssapi-sys = { path = "../libgssapi-sys" }
+libgssapi-sys = "0.1"
 parking_lot = "0.10"
 bitflags = "1.2"
 lazy_static = "1.4"
