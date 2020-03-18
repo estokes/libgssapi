@@ -1,12 +1,12 @@
 [package]
 name = "libgssapi"
-version = "0.1.0"
+version = "0.1.1"
 authors = ["Eric Stokes <letaris@gmail.com>"]
 edition = "2018"
 license = "MIT"
 description = "A safe binding to gssapi"
 homepage = "https://github.com/estokes/libgssapi"
-documentation = "https://docs.rs/libgssapi"
+documentation = "https://estokes.github.io/libgssapi/libgssapi/index.html"
 repository = "https://github.com/estokes/libgssapi"
 keywords = ["gssapi", "sspi", "kerberos", "krb5", "authentication"]
 categories = ["api-bindings", "authentication", "cryptography", "os::unix-apis"]
