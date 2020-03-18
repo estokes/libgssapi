@@ -90,7 +90,7 @@
                     <span class="ident">GSS_C_GSS_CODE</span> <span class="kw">as</span> <span class="ident">i32</span>,
                     <span class="ident">ptr</span>::<span class="ident">null_mut</span>::<span class="op">&lt;</span><span class="ident">gss_OID_desc</span><span class="op">&gt;</span>(),
                     <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">message_context</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">OM_uint32</span>,
-                    <span class="ident">buf</span>.<span class="ident">as_mut_ptr</span>(),
+                    <span class="ident">buf</span>.<span class="ident">to_c</span>(),
                 )
             };
             <span class="kw">if</span> <span class="ident">major</span> <span class="op">=</span><span class="op">=</span> <span class="ident">GSS_S_COMPLETE</span> {

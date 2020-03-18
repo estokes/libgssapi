@@ -342,6 +342,12 @@
 <span id="342">342</span>
 <span id="343">343</span>
 <span id="344">344</span>
+<span id="345">345</span>
+<span id="346">346</span>
+<span id="347">347</span>
+<span id="348">348</span>
+<span id="349">349</span>
+<span id="350">350</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="doccomment">/// Oids are BER encoded and defined in the various RFCs. Oids are</span>
 <span class="doccomment">/// horrible. This module is horrible. I&#39;m so pleased to share my</span>
@@ -459,6 +465,7 @@ if that happens I guess file a bug.
     <span class="ident">elements</span>: <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">u8</span>,
 }
 
+<span class="kw">unsafe</span> <span class="kw">impl</span> <span class="ident">Send</span> <span class="kw">for</span> <span class="ident">Oid</span> {}
 <span class="kw">unsafe</span> <span class="kw">impl</span> <span class="ident">Sync</span> <span class="kw">for</span> <span class="ident">Oid</span> {}
 
 <span class="kw">impl</span> <span class="ident">fmt</span>::<span class="ident">Debug</span> <span class="kw">for</span> <span class="ident">Oid</span> {
@@ -575,6 +582,13 @@ if that happens I guess file a bug.
 <span class="doccomment">/// A set of OIDs.</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">OidSet</span>(<span class="ident">gss_OID_set</span>);
 
+<span class="comment">// these are safe if we assume that the gssapi calls we pass oid sets</span>
+<span class="comment">// to make copies if they need to retain the sets. They&#39;d be crazy not</span>
+<span class="comment">// to, given that the user will probably free the set soon after</span>
+<span class="comment">// making the call.</span>
+<span class="kw">unsafe</span> <span class="kw">impl</span> <span class="ident">Send</span> <span class="kw">for</span> <span class="ident">OidSet</span> {}
+<span class="kw">unsafe</span> <span class="kw">impl</span> <span class="ident">Sync</span> <span class="kw">for</span> <span class="ident">OidSet</span> {}
+
 <span class="kw">impl</span> <span class="ident">Drop</span> <span class="kw">for</span> <span class="ident">OidSet</span> {
     <span class="kw">fn</span> <span class="ident">drop</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) {
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">_minor</span> <span class="op">=</span> <span class="ident">GSS_S_COMPLETE</span>;
@@ -635,11 +649,11 @@ if that happens I guess file a bug.
     }
 
     <span class="attribute">#[<span class="ident">allow</span>(<span class="ident">dead_code</span>)]</span>
-    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn</span> <span class="ident">from_c</span>(<span class="ident">ptr</span>: <span class="ident">gss_OID_set</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">OidSet</span> {
+    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">from_c</span>(<span class="ident">ptr</span>: <span class="ident">gss_OID_set</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">OidSet</span> {
         <span class="ident">OidSet</span>(<span class="ident">ptr</span>)
     }
 
-    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn</span> <span class="ident">to_c</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">gss_OID_set</span> {
+    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">to_c</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">gss_OID_set</span> {
         <span class="self">self</span>.<span class="number">0</span>
     }
     
@@ -648,8 +662,7 @@ if that happens I guess file a bug.
         <span class="kw">unsafe</span> { (<span class="kw-2">*</span><span class="self">self</span>.<span class="number">0</span>).<span class="ident">count</span> <span class="kw">as</span> <span class="ident">usize</span> }
     }
     
-    <span class="doccomment">/// Add an OID to the set. How that can fail I don&#39;t exactly know,</span>
-    <span class="doccomment">/// but it can. Oh were you looking for remove. It doesn&#39;t exist.</span>
+    <span class="doccomment">/// Add an OID to the set. </span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">add</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">id</span>: <span class="kw-2">&amp;</span><span class="ident">Oid</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">Error</span><span class="op">&gt;</span> {
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">minor</span> <span class="op">=</span> <span class="ident">GSS_S_COMPLETE</span>;
         <span class="kw">let</span> <span class="ident">major</span> <span class="op">=</span> <span class="kw">unsafe</span> {
@@ -667,8 +680,7 @@ if that happens I guess file a bug.
     }
 
     <span class="doccomment">/// Ask gssapi whether it think the specified oid is in the</span>
-    <span class="doccomment">/// specified set. You can do it yourself with the Iterator, but</span>
-    <span class="doccomment">/// maybe you want to ask gssapi. For some reason.</span>
+    <span class="doccomment">/// specified set.</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">contains</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">id</span>: <span class="kw-2">&amp;</span><span class="ident">Oid</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">bool</span>, <span class="ident">Error</span><span class="op">&gt;</span> {
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">minor</span> <span class="op">=</span> <span class="ident">GSS_S_COMPLETE</span>;
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">present</span> <span class="op">=</span> <span class="number">0</span>;

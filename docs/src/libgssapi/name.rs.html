@@ -146,11 +146,14 @@
     <span class="ident">gss_import_name</span>, <span class="ident">gss_name_struct</span>, <span class="ident">gss_name_t</span>, <span class="ident">gss_release_name</span>,
     <span class="ident">OM_uint32</span>, <span class="ident">GSS_S_COMPLETE</span>,
 };
-<span class="kw">use</span> <span class="ident">std</span>::{<span class="ident">ops</span>::<span class="ident">Deref</span>, <span class="ident">ptr</span>, <span class="ident">fmt</span>, <span class="ident">sync</span>::<span class="ident">Arc</span>};
+<span class="kw">use</span> <span class="ident">std</span>::{<span class="ident">ptr</span>, <span class="ident">fmt</span>};
 
-<span class="kw">struct</span> <span class="ident">NameInner</span>(<span class="ident">gss_name_t</span>);
+<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">Name</span>(<span class="ident">gss_name_t</span>);
 
-<span class="kw">impl</span> <span class="ident">Drop</span> <span class="kw">for</span> <span class="ident">NameInner</span> {
+<span class="kw">unsafe</span> <span class="kw">impl</span> <span class="ident">Send</span> <span class="kw">for</span> <span class="ident">Name</span> {}
+<span class="kw">unsafe</span> <span class="kw">impl</span> <span class="ident">Sync</span> <span class="kw">for</span> <span class="ident">Name</span> {}
+
+<span class="kw">impl</span> <span class="ident">Drop</span> <span class="kw">for</span> <span class="ident">Name</span> {
     <span class="kw">fn</span> <span class="ident">drop</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) {
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">_minor</span> <span class="op">=</span> <span class="ident">GSS_S_COMPLETE</span>;
         <span class="kw">let</span> <span class="ident">major</span> <span class="op">=</span> <span class="kw">unsafe</span> {
@@ -166,10 +169,6 @@
     }
 }
 
-<span class="doccomment">/// an internal gssapi name. Wrapped in an Arc for clone and thread safety.</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>)]</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">Name</span>(<span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">NameInner</span><span class="op">&gt;</span>);
-
 <span class="kw">impl</span> <span class="ident">fmt</span>::<span class="ident">Debug</span> <span class="kw">for</span> <span class="ident">Name</span> {
     <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">fmt</span>::<span class="ident">Formatter</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">fmt</span>::<span class="ident">Error</span><span class="op">&gt;</span> {
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">minor</span> <span class="op">=</span> <span class="ident">GSS_S_COMPLETE</span>;
@@ -178,8 +177,8 @@
         <span class="kw">let</span> <span class="ident">major</span> <span class="op">=</span> <span class="kw">unsafe</span> {
             <span class="ident">gss_display_name</span>(
                 <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">minor</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">OM_uint32</span>,
-                <span class="kw-2">*</span><span class="kw-2">*</span><span class="self">self</span>,
-                <span class="ident">buf</span>.<span class="ident">as_mut_ptr</span>(),
+                <span class="self">self</span>.<span class="ident">to_c</span>(),
+                <span class="ident">buf</span>.<span class="ident">to_c</span>(),
                 <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">oid</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">gss_OID</span>,
             )
         };
@@ -197,15 +196,16 @@
     }
 }
 
-<span class="kw">impl</span> <span class="ident">Deref</span> <span class="kw">for</span> <span class="ident">Name</span> {
-    <span class="kw">type</span> <span class="ident">Target</span> <span class="op">=</span> <span class="ident">gss_name_t</span>;
-
-    <span class="kw">fn</span> <span class="ident">deref</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="kw-2">&amp;</span><span class="self">Self</span>::<span class="ident">Target</span> {
-        <span class="kw-2">&amp;</span>(<span class="self">self</span>.<span class="number">0</span>).<span class="number">0</span>
-    }
-}
-
 <span class="kw">impl</span> <span class="ident">Name</span> {
+    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">to_c</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">gss_name_t</span> {
+        <span class="self">self</span>.<span class="number">0</span>
+    }
+
+    <span class="attribute">#[<span class="ident">allow</span>(<span class="ident">dead_code</span>)]</span>
+    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">from_c</span>(<span class="ident">ptr</span>: <span class="ident">gss_name_t</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span> {
+        <span class="ident">Name</span>(<span class="ident">ptr</span>)
+    }
+    
     <span class="doccomment">/// parse the specified bytes as a gssapi name, with optional</span>
     <span class="doccomment">/// `kind` e.g. `GSS_NT_HOSTBASED_SERVICE` or `GSS_NT_KRB5_PRINCIPAL`</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">s</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>], <span class="ident">kind</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">Oid</span><span class="op">&gt;</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>, <span class="ident">Error</span><span class="op">&gt;</span> {
@@ -215,7 +215,7 @@
         <span class="kw">let</span> <span class="ident">major</span> <span class="op">=</span> <span class="kw">unsafe</span> {
             <span class="ident">gss_import_name</span>(
                 <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">minor</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">OM_uint32</span>,
-                <span class="ident">buf</span>.<span class="ident">as_mut_ptr</span>(),
+                <span class="ident">buf</span>.<span class="ident">to_c</span>(),
                 <span class="kw">match</span> <span class="ident">kind</span> {
                     <span class="prelude-val">None</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">ptr</span>::<span class="ident">null_mut</span>::<span class="op">&lt;</span><span class="ident">gss_OID_desc</span><span class="op">&gt;</span>(),
                     <span class="prelude-val">Some</span>(<span class="ident">kind</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">kind</span>.<span class="ident">to_c</span>(),
@@ -224,7 +224,7 @@
             )
         };
         <span class="kw">if</span> <span class="ident">major</span> <span class="op">=</span><span class="op">=</span> <span class="ident">GSS_S_COMPLETE</span> {
-            <span class="prelude-val">Ok</span>(<span class="ident">Name</span>(<span class="ident">Arc</span>::<span class="ident">new</span>(<span class="ident">NameInner</span>(<span class="ident">name</span>))))
+            <span class="prelude-val">Ok</span>(<span class="ident">Name</span>(<span class="ident">name</span>))
         } <span class="kw">else</span> {
             <span class="prelude-val">Err</span>(<span class="ident">Error</span> { <span class="ident">major</span>, <span class="ident">minor</span> })
         }
@@ -239,7 +239,7 @@
         <span class="kw">let</span> <span class="ident">major</span> <span class="op">=</span> <span class="kw">unsafe</span> {
             <span class="ident">gss_canonicalize_name</span>(
                 <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">minor</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">OM_uint32</span>,
-                <span class="kw-2">*</span><span class="kw-2">*</span><span class="self">self</span>,
+                <span class="self">self</span>.<span class="ident">to_c</span>(),
                 <span class="kw">match</span> <span class="ident">mech</span> {
                     <span class="prelude-val">None</span> <span class="op">=</span><span class="op">&gt;</span> <span class="ident">ptr</span>::<span class="ident">null_mut</span>::<span class="op">&lt;</span><span class="ident">gss_OID_desc</span><span class="op">&gt;</span>(),
                     <span class="prelude-val">Some</span>(<span class="ident">id</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">id</span>.<span class="ident">to_c</span>()
@@ -248,7 +248,7 @@
             )
         };
         <span class="kw">if</span> <span class="ident">major</span> <span class="op">=</span><span class="op">=</span> <span class="ident">GSS_S_COMPLETE</span> {
-            <span class="prelude-val">Ok</span>(<span class="ident">Name</span>(<span class="ident">Arc</span>::<span class="ident">new</span>(<span class="ident">NameInner</span>(<span class="ident">out</span>))))
+            <span class="prelude-val">Ok</span>(<span class="ident">Name</span>(<span class="ident">out</span>))
         } <span class="kw">else</span> {
             <span class="prelude-val">Err</span>(<span class="ident">Error</span> { <span class="ident">major</span>, <span class="ident">minor</span> })
         }
@@ -262,12 +262,12 @@
         <span class="kw">let</span> <span class="ident">major</span> <span class="op">=</span> <span class="kw">unsafe</span> {
             <span class="ident">gss_duplicate_name</span>(
                 <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">minor</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">OM_uint32</span>,
-                <span class="kw-2">*</span><span class="kw-2">*</span><span class="self">self</span>,
+                <span class="self">self</span>.<span class="ident">to_c</span>(),
                 <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">copy</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">gss_name_t</span>,
             )
         };
         <span class="kw">if</span> <span class="ident">major</span> <span class="op">=</span><span class="op">=</span> <span class="ident">GSS_S_COMPLETE</span> {
-            <span class="prelude-val">Ok</span>(<span class="ident">Name</span>(<span class="ident">Arc</span>::<span class="ident">new</span>(<span class="ident">NameInner</span>(<span class="ident">copy</span>))))
+            <span class="prelude-val">Ok</span>(<span class="ident">Name</span>(<span class="ident">copy</span>))
         } <span class="kw">else</span> {
             <span class="prelude-val">Err</span>(<span class="ident">Error</span> { <span class="ident">major</span>, <span class="ident">minor</span> })
         }

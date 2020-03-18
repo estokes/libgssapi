@@ -1,1 +1,1 @@
-initSidebarItems({"enum":[["CredUsage",""]],"struct":[["Cred","gssapi credentials. This is wrapped in an Arc internally, so it may be cloned cheaply and passed to other threads."]]});
+initSidebarItems({"enum":[["CredUsage",""]],"struct":[["Cred","gssapi credentials."]]});
