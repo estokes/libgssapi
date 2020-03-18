@@ -1,6 +1,6 @@
 [package]
 name = "libgssapi-sys"
-version = "0.1.0"
+version = "0.1.1"
 authors = ["Eric Stokes <letaris@gmail.com>"]
 edition = "2018"
 license = "MIT"
@@ -10,7 +10,7 @@ documentation = "https://docs.rs/libgssapi"
 repository = "https://github.com/estokes/libgssapi"
 keywords = ["gssapi", "sspi", "kerberos", "krb5", "authentication"]
 categories = ["api-bindings", "authentication", "cryptography", "os::unix-apis"]
-links = "gssapi"
+links = "gssapi_krb5"
 
 [build-dependencies]
 bindgen = "0.53"
