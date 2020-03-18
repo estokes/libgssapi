@@ -11,6 +11,7 @@ repository = "https://github.com/estokes/libgssapi"
 readme = "README.md"
 keywords = ["gssapi", "sspi", "kerberos", "krb5", "authentication"]
 categories = ["api-bindings", "authentication", "cryptography", "os::unix-apis"]
+links = "gssapi"
 
 [build-dependencies]
 bindgen = "0.53"

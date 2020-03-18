@@ -179,6 +179,7 @@ impl From<gss_OID_desc> for Oid {
 }
 
 impl Oid {
+    #[allow(dead_code)]
     pub(crate) unsafe fn from_c<'a>(ptr: gss_OID) -> Option<&'a Oid> {
         mem::transmute::<gss_OID, *const Oid>(ptr).as_ref()
     }
@@ -288,6 +289,7 @@ impl OidSet {
         }
     }
 
+    #[allow(dead_code)]
     pub(crate) fn from_c(ptr: gss_OID_set) -> OidSet {
         OidSet(ptr)
     }
