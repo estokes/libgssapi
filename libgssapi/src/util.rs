@@ -1,6 +1,5 @@
-use crate::error::Error;
 use libgssapi_sys::{
-    gss_OID, gss_buffer_desc, gss_buffer_desc_struct, gss_buffer_t, gss_release_buffer,
+    gss_buffer_desc, gss_buffer_desc_struct, gss_buffer_t, gss_release_buffer,
     size_t, OM_uint32, GSS_S_COMPLETE,
 };
 use std::{

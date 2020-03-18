@@ -279,10 +279,6 @@ impl OidSet {
         unsafe { (*self.0).count as usize }
     }
     
-    pub(crate) fn as_ptr(&mut self) -> gss_OID_set {
-        self.0
-    }
-
     pub fn add(&mut self, id: &Oid) -> Result<(), Error> {
         let mut minor = GSS_S_COMPLETE;
         let major = unsafe {

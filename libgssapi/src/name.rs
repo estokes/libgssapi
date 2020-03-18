@@ -1,7 +1,7 @@
 use crate::{
     error::Error,
     util::{Buf, BufRef},
-    oid::{Oid, OidSet},
+    oid::Oid,
 };
 use libgssapi_sys::{
     gss_OID, gss_OID_desc, gss_canonicalize_name, gss_display_name, gss_duplicate_name,

@@ -1,9 +1,0 @@
-[package]
-name = "testgss"
-version = "0.1.0"
-authors = ["Eric Stokes <letaris@gmail.com>"]
-edition = "2018"
-
-[dependencies]
-libgssapi-sys = {path = "../libgssapi-sys"}
-libgssapi = {path = "../libgssapi"}

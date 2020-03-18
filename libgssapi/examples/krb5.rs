@@ -1,4 +1,56 @@
-use std::{ops::Deref, env::args};
+/*
+An example program demonstrating mutual authentication and encryption
+between a server and a client using the Kerberos v5 gssapi mech. In
+order to run this example you must have a working kerberos
+environment, more specifically,
+
+* a valid krb5.conf
+* a working KDC for your realm
+* a service principal for the server e.g. nfs/server.example.com@EXAMPLE.COM
+* a keytab containing the service principal's key and that is readable by the user 
+  you want to run the example as. e.g. if not running as root set the environment 
+  variable KRB5_KTNAME=FILE:/path/to/keytab
+* a valid TGT from your KDC e.g. klist should print at least something like,
+
+Ticket cache: FILE:/tmp/krb5cc_1000_Ooxj5E
+Default principal: user@EXAMPLE.COM
+
+Valid starting       Expires              Service principal
+03/17/2020 18:10:05  03/18/2020 04:10:05  krbtgt/EXAMPLE.COM@EXAMPLE.COM
+	renew until 03/18/2020 18:10:05
+
+if it doesn't then you need to run kinit to renew your TGT.
+
+a successful run will look like,
+
+KRB5_KTNAME=FILE:/path/to/krb5.keytab cargo run --example krb5 nfs@example.com
+import name
+canonicalize name for kerberos 5
+server name: nfs@example.com, server cname: nfs/example.com@
+acquired server credentials
+acquired default client credentials
+security context created successfully
+the decrypted message is: 'super secret message'
+
+Depending on which implementation of gssapi you have the error
+messages it produces may not be very helpful (well, probably none of
+them actually produce helpful error messages). For example, if you
+can't read the services' keytab this is what MIT Kerberos will produce,
+
+KRB5_KTNAME=FILE:/path/to/unreadable/krb5.keytab cargo run --example krb5 nfs@example.com
+import name
+canonicalize name for kerberos 5
+server name: nfs@ken-ohki.ryu-oh.org, server cname: nfs/ken-ohki.ryu-oh.org@
+gssapi major error Unspecified GSS failure.  Minor code may provide more information
+gssapi minor error The routine must be called again to complete its function
+gssapi minor error The token's validity period has expired
+gssapi minor error A later token has already been processed
+
+Yep, that's pretty helpful. Thanks gssapi!
+
+*/
+
+use std::env::args;
 use libgssapi::{
     name::Name,
     credential::{Cred, CredUsage},
@@ -47,7 +99,7 @@ fn run(service_name: &[u8]) -> Result<(), Error> {
     let client_ctx = setup_client_ctx(&cname, &desired_mechs)?;
     let mut server_tok: Option<Buf> = None;
     loop {
-        match client_ctx.step(server_tok.as_ref().map(|b| b.deref()))? {
+        match client_ctx.step(server_tok.as_ref().map(|b| &**b))? {
             None => break,
             Some(client_tok) => match server_ctx.step(&*client_tok)? {
                 None => break,
