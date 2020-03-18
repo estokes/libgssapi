@@ -2,6 +2,8 @@
 
 A safe MIT licensed binding to gssapi
 
+see [rfc2744](https://tools.ietf.org/html/rfc2744.html) for more info
+
 ### Example KRB5 Mutual Authentication Between Client and Server
 ```rust
 use libgssapi::{
