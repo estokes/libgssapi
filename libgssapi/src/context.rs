@@ -56,9 +56,9 @@ fn wrap(ctx: gss_ctx_id_t, encrypt: bool, msg: &[u8]) -> Result<Buf, Error> {
             ctx,
             if encrypt { 1 } else { 0 },
             GSS_C_QOP_DEFAULT,
-            msg.as_mut_ptr(),
+            msg.to_c(),
             ptr::null_mut(),
-            enc_msg.as_mut_ptr(),
+            enc_msg.to_c(),
         )
     };
     if major == GSS_S_COMPLETE {
@@ -76,8 +76,8 @@ fn unwrap(ctx: gss_ctx_id_t, msg: &[u8]) -> Result<Buf, Error> {
         gss_unwrap(
             &mut minor as *mut OM_uint32,
             ctx,
-            msg.as_mut_ptr(),
-            out.as_mut_ptr(),
+            msg.to_c(),
+            out.to_c(),
             ptr::null_mut::<i32>(),
             ptr::null_mut::<OM_uint32>()
         )
@@ -124,6 +124,9 @@ impl Drop for ServerCtxInner {
     }
 }
 
+unsafe impl Send for ServerCtxInner {}
+unsafe impl Sync for ServerCtxInner {}
+
 /// The server side of a security context. Contexts are wrapped in and
 /// Arc<Mutex<_>> internally, so clones work and you can use them
 /// safely from other threads.
@@ -135,10 +138,10 @@ impl ServerCtx {
     /// credentials. You must then call `step` until the context is
     /// fully initialized. The mechanism is not specified because it
     /// is dictated by the client.
-    pub fn new(cred: &Cred) -> ServerCtx {
+    pub fn new(cred: Cred) -> ServerCtx {
         ServerCtx(Arc::new(Mutex::new(ServerCtxInner {
             ctx: ptr::null_mut(),
-            cred: cred.clone(),
+            cred: cred,
             delegated_cred: None,
             flags: CtxFlags::empty(),
             state: ServerCtxState::Uninitialized,
@@ -167,12 +170,12 @@ impl ServerCtx {
             gss_accept_sec_context(
                 &mut minor as *mut OM_uint32,
                 &mut inner.ctx as *mut gss_ctx_id_t,
-                *inner.cred,
-                tok.as_mut_ptr(),
+                inner.cred.to_c(),
+                tok.to_c(),
                 ptr::null_mut::<gss_channel_bindings_struct>(),
                 ptr::null_mut::<gss_name_t>(),
                 ptr::null_mut::<gss_OID>(),
-                out_tok.as_mut_ptr(),
+                out_tok.to_c(),
                 &mut flag_bits as *mut OM_uint32,
                 ptr::null_mut::<OM_uint32>(),
                 &mut delegated_cred as *mut gss_cred_id_t,
@@ -180,12 +183,12 @@ impl ServerCtx {
         };
         if !delegated_cred.is_null() {
             match &inner.delegated_cred {
-                None => {
-                    inner.delegated_cred = Some(Cred::from_raw(delegated_cred));
+                None => unsafe {
+                    inner.delegated_cred = Some(Cred::from_c(delegated_cred));
                 }
-                Some(current) => {
-                    if **current != delegated_cred {
-                        inner.delegated_cred = Some(Cred::from_raw(delegated_cred));
+                Some(current) => unsafe {
+                    if current.to_c() != delegated_cred {
+                        inner.delegated_cred = Some(Cred::from_c(delegated_cred));
                     }
                 }
             }
@@ -247,6 +250,9 @@ impl Drop for ClientCtxInner {
     }
 }
 
+unsafe impl Send for ClientCtxInner {}
+unsafe impl Sync for ClientCtxInner {}
+
 /// The client side of a security context. Contexts are wrapped in and
 /// Arc<Mutex<_>> internally, so clones work and you can use them
 /// safely from other threads.
@@ -260,15 +266,15 @@ impl ClientCtx {
     /// will pick a default for you). To finish initializing the
     /// context you must call `step`.
     pub fn new(
-        cred: &Cred,
-        target: &Name,
+        cred: Cred,
+        target: Name,
         flags: CtxFlags,
         mech: Option<&'static Oid>
     ) -> ClientCtx {
         let inner = ClientCtxInner {
             ctx: ptr::null_mut(),
-            cred: cred.clone(),
-            target: target.clone(),
+            cred: cred,
+            target: target,
             flags,
             state: ClientCtxState::Uninitialized,
             mech
@@ -297,9 +303,9 @@ impl ClientCtx {
         let major = unsafe {
             gss_init_sec_context(
                 &mut minor as *mut OM_uint32,
-                *inner.cred,
+                inner.cred.to_c(),
                 &mut inner.ctx as *mut gss_ctx_id_t,
-                *inner.target,
+                inner.target.to_c(),
                 match inner.mech {
                     None => NO_OID,
                     Some(mech) => mech.to_c(),
@@ -309,10 +315,10 @@ impl ClientCtx {
                 ptr::null_mut::<gss_channel_bindings_struct>(),
                 match tok {
                     None => ptr::null_mut::<gss_buffer_desc>(),
-                    Some(ref mut tok) => tok.as_mut_ptr(),
+                    Some(ref mut tok) => tok.to_c(),
                 },
                 ptr::null_mut::<gss_OID>(),
-                out_tok.as_mut_ptr(),
+                out_tok.to_c(),
                 ptr::null_mut::<OM_uint32>(),
                 ptr::null_mut::<OM_uint32>(),
             )

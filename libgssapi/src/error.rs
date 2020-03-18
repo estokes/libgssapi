@@ -30,7 +30,7 @@ impl Error {
                     GSS_C_GSS_CODE as i32,
                     ptr::null_mut::<gss_OID_desc>(),
                     &mut message_context as *mut OM_uint32,
-                    buf.as_mut_ptr(),
+                    buf.to_c(),
                 )
             };
             if major == GSS_S_COMPLETE {

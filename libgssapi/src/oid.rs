@@ -114,6 +114,7 @@ pub struct Oid {
     elements: *const u8,
 }
 
+unsafe impl Send for Oid {}
 unsafe impl Sync for Oid {}
 
 impl fmt::Debug for Oid {
@@ -230,6 +231,13 @@ impl<'a> ExactSizeIterator for OidSetIter<'a> {
 /// A set of OIDs.
 pub struct OidSet(gss_OID_set);
 
+// these are safe if we assume that the gssapi calls we pass oid sets
+// to make copies if they need to retain the sets. They'd be crazy not
+// to, given that the user will probably free the set soon after
+// making the call.
+unsafe impl Send for OidSet {}
+unsafe impl Sync for OidSet {}
+
 impl Drop for OidSet {
     fn drop(&mut self) {
         let mut _minor = GSS_S_COMPLETE;
@@ -290,11 +298,11 @@ impl OidSet {
     }
 
     #[allow(dead_code)]
-    pub(crate) fn from_c(ptr: gss_OID_set) -> OidSet {
+    pub(crate) unsafe fn from_c(ptr: gss_OID_set) -> OidSet {
         OidSet(ptr)
     }
 
-    pub(crate) fn to_c(&self) -> gss_OID_set {
+    pub(crate) unsafe fn to_c(&self) -> gss_OID_set {
         self.0
     }
     
@@ -303,8 +311,7 @@ impl OidSet {
         unsafe { (*self.0).count as usize }
     }
     
-    /// Add an OID to the set. How that can fail I don't exactly know,
-    /// but it can. Oh were you looking for remove. It doesn't exist.
+    /// Add an OID to the set. 
     pub fn add(&mut self, id: &Oid) -> Result<(), Error> {
         let mut minor = GSS_S_COMPLETE;
         let major = unsafe {
@@ -322,8 +329,7 @@ impl OidSet {
     }
 
     /// Ask gssapi whether it think the specified oid is in the
-    /// specified set. You can do it yourself with the Iterator, but
-    /// maybe you want to ask gssapi. For some reason.
+    /// specified set.
     pub fn contains(&self, id: &Oid) -> Result<bool, Error> {
         let mut minor = GSS_S_COMPLETE;
         let mut present = 0;

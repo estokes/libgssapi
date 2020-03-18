@@ -73,11 +73,11 @@ fn setup_server_ctx(
         Some(&cname), None, CredUsage::Accept, Some(desired_mechs)
     )?;
     println!("acquired server credentials");
-    Ok((ServerCtx::new(&server_cred), cname))
+    Ok((ServerCtx::new(server_cred), cname))
 }
 
 fn setup_client_ctx(
-    service_name: &Name,
+    service_name: Name,
     desired_mechs: &OidSet
 ) -> Result<ClientCtx, Error> {
     let client_cred = Cred::acquire(
@@ -85,7 +85,7 @@ fn setup_client_ctx(
     )?;
     println!("acquired default client credentials");
     Ok(ClientCtx::new(
-        &client_cred, service_name, CtxFlags::GSS_C_MUTUAL_FLAG, Some(&GSS_MECH_KRB5)
+        client_cred, service_name, CtxFlags::GSS_C_MUTUAL_FLAG, Some(&GSS_MECH_KRB5)
     ))
 }
 
@@ -96,7 +96,7 @@ fn run(service_name: &[u8]) -> Result<(), Error> {
         s
     };
     let (server_ctx, cname) = setup_server_ctx(service_name, &desired_mechs)?;
-    let client_ctx = setup_client_ctx(&cname, &desired_mechs)?;
+    let client_ctx = setup_client_ctx(cname, &desired_mechs)?;
     let mut server_tok: Option<Buf> = None;
     loop {
         match client_ctx.step(server_tok.as_ref().map(|b| &**b))? {

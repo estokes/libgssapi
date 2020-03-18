@@ -13,6 +13,9 @@ use std::{
 #[derive(Debug)]
 pub(crate) struct BufRef<'a>(gss_buffer_desc_struct, PhantomData<&'a [u8]>);
 
+unsafe impl<'a> Send for BufRef<'a> {}
+unsafe impl<'a> Sync for BufRef<'a> {}
+
 impl<'a> Deref for BufRef<'a> {
     type Target = [u8];
 
@@ -32,7 +35,7 @@ impl<'a> From<&'a [u8]> for BufRef<'a> {
 }
 
 impl<'a> BufRef<'a> {
-    pub(crate) fn as_mut_ptr(&mut self) -> gss_buffer_t {
+    pub(crate) unsafe fn to_c(&mut self) -> gss_buffer_t {
         &mut self.0 as gss_buffer_t
     }
 }
@@ -43,6 +46,9 @@ impl<'a> BufRef<'a> {
 #[allow(dead_code)]
 #[derive(Debug)]
 pub struct Buf(gss_buffer_desc);
+
+unsafe impl Send for Buf {}
+unsafe impl Sync for Buf {}
 
 impl Deref for Buf {
     type Target = [u8];
@@ -81,7 +87,7 @@ impl Buf {
         })
     }
 
-    pub(crate) fn as_mut_ptr(&mut self) -> gss_buffer_t {
+    pub(crate) unsafe fn to_c(&mut self) -> gss_buffer_t {
         &mut self.0 as gss_buffer_t
     }
 }
