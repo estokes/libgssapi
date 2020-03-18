@@ -90,7 +90,14 @@ fn unwrap(ctx: gss_ctx_id_t, msg: &[u8]) -> Result<Buf, Error> {
 }
 
 pub trait SecurityContext {
+    /// Wrap a message with optional encryption. If `encrypt` is true
+    /// then only the other side of the context can read the
+    /// message. In any case the other side can always verify message
+    /// integrity.
     fn wrap(&self, encrypt: bool, msg: &[u8]) -> Result<Buf, Error>;
+
+    /// Unwrap a wrapped message, checking it's integrity and
+    /// decrypting it if necessary.
     fn unwrap(&self, msg: &[u8]) -> Result<Buf, Error>;
 }
 
@@ -117,10 +124,17 @@ impl Drop for ServerCtxInner {
     }
 }
 
+/// The server side of a security context. Contexts are wrapped in and
+/// Arc<Mutex<_>> internally, so clones work and you can use them
+/// safely from other threads.
 #[derive(Clone)]
 pub struct ServerCtx(Arc<Mutex<ServerCtxInner>>);
 
 impl ServerCtx {
+    /// Create a new uninitialized server context with the specified
+    /// credentials. You must then call `step` until the context is
+    /// fully initialized. The mechanism is not specified because it
+    /// is dictated by the client.
     pub fn new(cred: &Cred) -> ServerCtx {
         ServerCtx(Arc::new(Mutex::new(ServerCtxInner {
             ctx: ptr::null_mut(),
@@ -131,6 +145,12 @@ impl ServerCtx {
         })))
     }
 
+    /// Perform 1 step in the initialization of the server context,
+    /// feeding it a token you received from the client. If
+    /// initialization is complete from the point of view of the
+    /// server then this will return Ok(None). Otherwise it will
+    /// return a token that needs to be sent to the client and fed to
+    /// `ClientCtx::step`.
     pub fn step(&self, tok: &[u8]) -> Result<Option<Buf>, Error> {
         let mut inner = self.0.lock();
         match inner.state {
@@ -227,10 +247,18 @@ impl Drop for ClientCtxInner {
     }
 }
 
+/// The client side of a security context. Contexts are wrapped in and
+/// Arc<Mutex<_>> internally, so clones work and you can use them
+/// safely from other threads.
 #[derive(Clone)]
 pub struct ClientCtx(Arc<Mutex<ClientCtxInner>>);
 
 impl ClientCtx {
+    /// Create a new uninitialized client security context using the
+    /// specified credentials, targeting the service named by target,
+    /// and optionally using a specific mechanism (otherwise gssapi
+    /// will pick a default for you). To finish initializing the
+    /// context you must call `step`.
     pub fn new(
         cred: &Cred,
         target: &Name,
@@ -248,6 +276,14 @@ impl ClientCtx {
         ClientCtx(Arc::new(Mutex::new(inner)))
     }
 
+    /// Perform 1 step in the initialization of the specfied security
+    /// context. Since the client initiates context creation, the
+    /// token will initially be None, and gssapi will give you a token
+    /// to send to the server. The server may send back a token, which
+    /// you must feed to this function, and possibly get another token
+    /// to send to the server. This will go on a mechanism specifiec
+    /// number of times until step returns `Ok(None)`. At that point
+    /// the context is fully initialized.
     pub fn step(&self, tok: Option<&[u8]>) -> Result<Option<Buf>, Error> {
         let mut inner = self.0.lock();
         match inner.state {

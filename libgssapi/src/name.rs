@@ -28,6 +28,7 @@ impl Drop for NameInner {
     }
 }
 
+/// an internal gssapi name. Wrapped in an Arc for clone and thread safety.
 #[derive(Clone)]
 pub struct Name(Arc<NameInner>);
 
@@ -67,6 +68,8 @@ impl Deref for Name {
 }
 
 impl Name {
+    /// parse the specified bytes as a gssapi name, with optional
+    /// `kind` e.g. `GSS_NT_HOSTBASED_SERVICE` or `GSS_NT_KRB5_PRINCIPAL`
     pub fn new(s: &[u8], kind: Option<&Oid>) -> Result<Self, Error> {
         let mut buf = BufRef::from(s);
         let mut minor = GSS_S_COMPLETE;
@@ -89,6 +92,9 @@ impl Name {
         }
     }
 
+    /// canonicalize a name for the specified mechanism (or the
+    /// default mechanism if not specified). This makes a copy of the
+    /// name.
     pub fn canonicalize(&self, mech: Option<&Oid>) -> Result<Self, Error> {
         let mut out = ptr::null_mut::<gss_name_struct>();
         let mut minor = GSS_S_COMPLETE;
@@ -110,7 +116,8 @@ impl Name {
         }
     }
 
-    // CR estokes: is this even needed?
+    /// Duplicate the name at the gssapi level. I'm not sure why you'd
+    /// need to do this, since name is cloneable, but it's here anyway.
     pub fn duplicate(&self) -> Result<Self, Error> {
         let mut copy = ptr::null_mut::<gss_name_struct>();
         let mut minor = GSS_S_COMPLETE;

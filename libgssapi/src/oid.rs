@@ -1,4 +1,6 @@
-/// Oids are BER encoded and defined in the various RFCs
+/// Oids are BER encoded and defined in the various RFCs. Oids are
+/// horrible. This module is horrible. I'm so pleased to share my
+/// horror with you.
 use crate::error::Error;
 use libgssapi_sys::{
     gss_OID, gss_OID_desc, gss_OID_set, gss_OID_set_desc, gss_add_oid_set_member,
@@ -91,9 +93,20 @@ lazy_static! {
     ].iter().copied());
 }
 
-// this mirrors the C struct, but has a proper const pointer AS
-// SPECIFIED in the standard. This ends up being, sadly, the most
-// ergonomic way of wrapping the api.
+/* this mirrors the C struct, but has a proper const pointer AS
+SPECIFIED in the standard. This ends up being, sadly, the most
+ergonomic way of wrapping the api.
+
+Speaking of horror, here's a horrible thought. I've copied lots of
+OIDs from lots of standards into this module in order to make your
+life easier, and also in order to not have to run bindgen on ALL the
+header files. The standard says implementations must put their oids in
+static memory, and that they much be ber encoded, but it doesn't say
+they can't check equality by pointer comparison. MIT Kerberos
+apparantly isn't that evil, but some other implementation might be. So
+if that happens I guess file a bug.
+*/
+/// An Oid. Did I mention I hate OIDs.
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct Oid {
@@ -174,6 +187,12 @@ impl Oid {
         mem::transmute::<*const Oid, gss_OID>(self as *const Oid)
     }
 
+    /// If you need to use an OID I didn't define above, then you must
+    /// construct a BER encoded slice of it's components and store it
+    /// in static memory (yes the standard REQUIRES that). Then you
+    /// can pass it to this function and get a proper `Oid` handle. If
+    /// you get the BER wrong something wonderful will happen, I just
+    /// can't (won't?) say what.
     pub const fn from_slice(ber: &'static [u8]) -> Oid {
         Oid {
             length: ber.len() as u32,
@@ -207,7 +226,7 @@ impl<'a> ExactSizeIterator for OidSetIter<'a> {
     }
 }
 
-
+/// A set of OIDs.
 pub struct OidSet(gss_OID_set);
 
 impl Drop for OidSet {
@@ -251,6 +270,8 @@ impl<'a> IntoIterator for &'a OidSet {
 }
 
 impl OidSet {
+    /// Create an empty OID set. I don't know how this can fail unless
+    /// malloc fails.
     pub fn new() -> Result<OidSet, Error> {
         let mut minor = GSS_S_COMPLETE;
         let mut out = ptr::null_mut::<gss_OID_set_desc>();
@@ -275,10 +296,13 @@ impl OidSet {
         self.0
     }
     
+    /// How many oids are in this set
     pub fn len(&self) -> usize {
         unsafe { (*self.0).count as usize }
     }
     
+    /// Add an OID to the set. How that can fail I don't exactly know,
+    /// but it can. Oh were you looking for remove. It doesn't exist.
     pub fn add(&mut self, id: &Oid) -> Result<(), Error> {
         let mut minor = GSS_S_COMPLETE;
         let major = unsafe {
@@ -295,6 +319,9 @@ impl OidSet {
         }
     }
 
+    /// Ask gssapi whether it think the specified oid is in the
+    /// specified set. You can do it yourself with the Iterator, but
+    /// maybe you want to ask gssapi. For some reason.
     pub fn contains(&self, id: &Oid) -> Result<bool, Error> {
         let mut minor = GSS_S_COMPLETE;
         let mut present = 0;

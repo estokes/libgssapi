@@ -28,6 +28,8 @@ impl Drop for CredInner {
     }
 }
 
+/// gssapi credentials. This is wrapped in an Arc internally, so it
+/// may be cloned cheaply and passed to other threads.
 #[derive(Clone)]
 pub struct Cred(Arc<CredInner>);
 
@@ -47,6 +49,10 @@ impl Deref for Cred {
 }
 
 impl Cred {
+    /// Acquire gssapi credentials for `name` or the default name,
+    /// lasting for `time_req` or as long as possible, for the purpose
+    /// of `usage`, and for use with `desired_mechs` or the default
+    /// mechanism.
     pub fn acquire(
         name: Option<&Name>,
         time_req: Option<u32>,
