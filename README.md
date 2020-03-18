@@ -4,6 +4,8 @@ A safe MIT licensed binding to gssapi
 
 see [rfc2744](https://tools.ietf.org/html/rfc2744.html) for more info
 
+gssapi is a huge and complex beast that is also very old (like the 80s old). So while this library might work for lots of mechanisms (I've certainly tried to avoid breaking anything) it has only been tested (so far) with MIT kerberos 5.
+
 ### Example KRB5 Mutual Authentication Between Client and Server
 ```rust
 use libgssapi::{
