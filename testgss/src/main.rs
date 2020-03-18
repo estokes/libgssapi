@@ -1,25 +1,50 @@
-use std::ops::Deref;
+use std::{ops::Deref, env::args};
 use libgssapi::{
     name::Name,
     credential::{Cred, CredUsage},
     error::Error,
     context::{CtxFlags, ClientCtx, ServerCtx, SecurityContext},
-    util::Buf
+    util::Buf,
+    oid::{OidSet, GSS_NT_HOSTBASED_SERVICE, GSS_MECH_KRB5},
 };
 
-fn run() -> Result<(), Error> {
-    dbg!("start");
-    let name = Name::new(b"nfs/ken-ohki.ryu-oh.org")?;
-    dbg!("import name");
-    let cname = name.canonicalize()?;
-    dbg!("canonicalize name");
-    println!("name: {}, cname: {}", name, cname);
-    let server_cred = Cred::acquire(Some(&cname), None, CredUsage::Accept)?;
-    dbg!("acquired server credentials");
-    let client_cred = Cred::acquire(None, None, CredUsage::Initiate)?;
-    dbg!("acquired client credentials");
-    let client_ctx = ClientCtx::new(&client_cred, &cname, CtxFlags::GSS_C_MUTUAL_FLAG);
-    let server_ctx = ServerCtx::new(&server_cred);
+fn setup_server_ctx(
+    service_name: &[u8],
+    desired_mechs: &OidSet
+) -> Result<(ServerCtx, Name), Error> {
+    println!("import name");
+    let name = Name::new(service_name, Some(&GSS_NT_HOSTBASED_SERVICE))?;
+    let cname = name.canonicalize(Some(&GSS_MECH_KRB5))?;
+    println!("canonicalize name for kerberos 5");
+    println!("server name: {}, server cname: {}", name, cname);
+    let server_cred = Cred::acquire(
+        Some(&cname), None, CredUsage::Accept, Some(desired_mechs)
+    )?;
+    println!("acquired server credentials");
+    Ok((ServerCtx::new(&server_cred), cname))
+}
+
+fn setup_client_ctx(
+    service_name: &Name,
+    desired_mechs: &OidSet
+) -> Result<ClientCtx, Error> {
+    let client_cred = Cred::acquire(
+        None, None, CredUsage::Initiate, Some(&desired_mechs)
+    )?;
+    println!("acquired default client credentials");
+    Ok(ClientCtx::new(
+        &client_cred, service_name, CtxFlags::GSS_C_MUTUAL_FLAG, Some(&GSS_MECH_KRB5)
+    ))
+}
+
+fn run(service_name: &[u8]) -> Result<(), Error> {
+    let desired_mechs = {
+        let mut s = OidSet::new()?;
+        s.add(&GSS_MECH_KRB5)?;
+        s
+    };
+    let (server_ctx, cname) = setup_server_ctx(service_name, &desired_mechs)?;
+    let client_ctx = setup_client_ctx(&cname, &desired_mechs)?;
     let mut server_tok: Option<Buf> = None;
     loop {
         match client_ctx.step(server_tok.as_ref().map(|b| b.deref()))? {
@@ -30,7 +55,7 @@ fn run() -> Result<(), Error> {
             }
         }
     }
-    dbg!("security context created successfully");
+    println!("security context created successfully");
     let secret_msg = client_ctx.wrap(true, b"super secret message")?;
     let decoded_msg = server_ctx.unwrap(&*secret_msg)?;
     println!("the decrypted message is: '{}'", String::from_utf8_lossy(&*decoded_msg));
@@ -38,8 +63,13 @@ fn run() -> Result<(), Error> {
 }
 
 fn main() {
-    match run() {
-        Ok(()) => (),
-        Err(e) => println!("{}", e),
+    let args = args().collect::<Vec<_>>();
+    if args.len() != 2 {
+        println!("usage: {}: <service@host>", args[0]);
+    } else {
+        match run(&args[1].as_bytes()) {
+            Ok(()) => (),
+            Err(e) => println!("{}", e),
+        }
     }
 }

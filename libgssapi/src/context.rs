@@ -3,11 +3,12 @@ use crate::{
     error::{gss_error, Error},
     name::Name,
     util::{Buf, BufRef},
+    oid::{Oid, NO_OID},
 };
 use libgssapi_sys::{
     gss_OID, gss_accept_sec_context, gss_buffer_desc, gss_channel_bindings_struct,
     gss_cred_id_struct, gss_cred_id_t, gss_ctx_id_t,
-    gss_delete_sec_context, gss_init_sec_context, gss_mech_krb5, gss_name_t, gss_wrap,
+    gss_delete_sec_context, gss_init_sec_context, gss_name_t, gss_wrap,
     gss_unwrap,
     OM_uint32, GSS_C_ANON_FLAG, GSS_C_CONF_FLAG, GSS_C_DELEG_FLAG,
     GSS_C_DELEG_POLICY_FLAG, GSS_C_INTEG_FLAG, GSS_C_MUTUAL_FLAG, GSS_C_PROT_READY_FLAG,
@@ -217,6 +218,7 @@ struct ClientCtxInner {
     target: Name,
     flags: CtxFlags,
     state: ClientCtxState,
+    mech: Option<&'static Oid>,
 }
 
 impl Drop for ClientCtxInner {
@@ -229,13 +231,19 @@ impl Drop for ClientCtxInner {
 pub struct ClientCtx(Arc<Mutex<ClientCtxInner>>);
 
 impl ClientCtx {
-    pub fn new(cred: &Cred, target: &Name, flags: CtxFlags) -> ClientCtx {
+    pub fn new(
+        cred: &Cred,
+        target: &Name,
+        flags: CtxFlags,
+        mech: Option<&'static Oid>
+    ) -> ClientCtx {
         let inner = ClientCtxInner {
             ctx: ptr::null_mut(),
             cred: cred.clone(),
             target: target.clone(),
             flags,
             state: ClientCtxState::Uninitialized,
+            mech
         };
         ClientCtx(Arc::new(Mutex::new(inner)))
     }
@@ -256,7 +264,10 @@ impl ClientCtx {
                 *inner.cred,
                 &mut inner.ctx as *mut gss_ctx_id_t,
                 *inner.target,
-                gss_mech_krb5,
+                match inner.mech {
+                    None => NO_OID,
+                    Some(mech) => mech.to_c(),
+                },
                 inner.flags.bits(),
                 _GSS_C_INDEFINITE,
                 ptr::null_mut::<gss_channel_bindings_struct>(),

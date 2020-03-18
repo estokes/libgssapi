@@ -1,10 +1,11 @@
 use crate::{
     error::Error,
     util::{Buf, BufRef},
+    oid::{Oid, OidSet},
 };
 use libgssapi_sys::{
     gss_OID, gss_OID_desc, gss_canonicalize_name, gss_display_name, gss_duplicate_name,
-    gss_import_name, gss_mech_krb5, gss_name_struct, gss_name_t, gss_release_name,
+    gss_import_name, gss_name_struct, gss_name_t, gss_release_name,
     OM_uint32, GSS_S_COMPLETE,
 };
 use std::{ops::Deref, ptr, fmt, sync::Arc};
@@ -66,7 +67,7 @@ impl Deref for Name {
 }
 
 impl Name {
-    pub fn new(s: &[u8], kind: Option<gss_OID>) -> Result<Self, Error> {
+    pub fn new(s: &[u8], kind: Option<&Oid>) -> Result<Self, Error> {
         let mut buf = BufRef::from(s);
         let mut minor = GSS_S_COMPLETE;
         let mut name = ptr::null_mut::<gss_name_struct>();
@@ -76,7 +77,7 @@ impl Name {
                 buf.as_mut_ptr(),
                 match kind {
                     None => ptr::null_mut::<gss_OID_desc>(),
-                    Some(p) => p,
+                    Some(kind) => kind.to_c(),
                 },
                 &mut name as *mut gss_name_t,
             )
@@ -88,14 +89,17 @@ impl Name {
         }
     }
 
-    pub fn canonicalize(&self) -> Result<Self, Error> {
+    pub fn canonicalize(&self, mech: Option<&Oid>) -> Result<Self, Error> {
         let mut out = ptr::null_mut::<gss_name_struct>();
         let mut minor = GSS_S_COMPLETE;
         let major = unsafe {
             gss_canonicalize_name(
                 &mut minor as *mut OM_uint32,
                 **self,
-                gss_mech_krb5,
+                match mech {
+                    None => ptr::null_mut::<gss_OID_desc>(),
+                    Some(id) => id.to_c()
+                },
                 &mut out as *mut gss_name_t,
             )
         };

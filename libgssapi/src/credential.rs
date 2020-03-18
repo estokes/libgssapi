@@ -1,7 +1,7 @@
-use crate::{error::Error, name::Name, util::OidSet};
+use crate::{error::Error, name::Name, oid::{OidSet, NO_OID_SET}};
 use libgssapi_sys::{
     gss_OID_set, gss_acquire_cred, gss_cred_id_struct, gss_cred_id_t, gss_cred_usage_t,
-    gss_mech_krb5, gss_name_struct, gss_release_cred, OM_uint32, GSS_C_ACCEPT,
+    gss_name_struct, gss_release_cred, OM_uint32, GSS_C_ACCEPT,
     GSS_C_BOTH, GSS_C_INITIATE, GSS_S_COMPLETE, _GSS_C_INDEFINITE,
 };
 use std::{ops::Deref, ptr, fmt, sync::Arc};
@@ -51,16 +51,12 @@ impl Cred {
         name: Option<&Name>,
         time_req: Option<u32>,
         usage: CredUsage,
+        desired_mechs: Option<&OidSet>,
     ) -> Result<Cred, Error> {
         let name = name
             .map(|n| **n)
             .unwrap_or(ptr::null_mut::<gss_name_struct>());
         let time_req = time_req.unwrap_or(_GSS_C_INDEFINITE);
-        let mut desired_mechs = {
-            let mut s = OidSet::new()?;
-            unsafe { s.add(gss_mech_krb5)? };
-            s
-        };
         let usage = match usage {
             CredUsage::Both => GSS_C_BOTH,
             CredUsage::Initiate => GSS_C_INITIATE,
@@ -73,7 +69,10 @@ impl Cred {
                 &mut minor as *mut OM_uint32,
                 name,
                 time_req,
-                desired_mechs.as_ptr(),
+                match desired_mechs {
+                    None => NO_OID_SET,
+                    Some(desired_mechs) => desired_mechs.to_c()
+                },
                 usage as gss_cred_usage_t,
                 &mut cred as *mut gss_cred_id_t,
                 ptr::null_mut::<gss_OID_set>(),
