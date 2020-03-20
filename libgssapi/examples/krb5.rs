@@ -23,13 +23,31 @@ if it doesn't then you need to run kinit to renew your TGT.
 
 a successful run will look like,
 
-KRB5_KTNAME=FILE:/path/to/krb5.keytab cargo run --example krb5 nfs@example.com
+KRB5_KTNAME=FILE:/path/to/krb5.keytab cargo run --example krb5 nfs@host.example.com
 import name
 canonicalize name for kerberos 5
-server name: nfs@example.com, server cname: nfs/example.com@
+server name: nfs@host.example.com, server cname: nfs/host.example.com@
 acquired server credentials
 acquired default client credentials
-security context created successfully
+security context initialized successfully
+client ctx info: CtxInfo {
+    source_name: user@EXAMPLE.COM,
+    target_name: nfs/host.example.com@,
+    lifetime: 35923,
+    mechanism: [42, 134, 72, 134, 247, 18, 1, 2, 2],
+    flags: GSS_C_MUTUAL_FLAG | GSS_C_CONF_FLAG | GSS_C_INTEG_FLAG | GSS_C_TRANS_FLAG,
+    local: true,
+    open: true,
+}
+server ctx info: CtxInfo {
+    source_name: user@EXAMPLE.COM,
+    target_name: nfs/host.example.com@EXAMPLE.COM,
+    lifetime: 36223,
+    mechanism: [42, 134, 72, 134, 247, 18, 1, 2, 2],
+    flags: GSS_C_MUTUAL_FLAG | GSS_C_CONF_FLAG | GSS_C_INTEG_FLAG | GSS_C_PROT_READY_FLAG | GSS_C_TRANS_FLAG,
+    local: false,
+    open: true,
+}
 the decrypted message is: 'super secret message'
 
 Depending on which implementation of gssapi you have the error
@@ -37,10 +55,10 @@ messages it produces may not be very helpful (well, probably none of
 them actually produce helpful error messages). For example, if you
 can't read the services' keytab this is what MIT Kerberos will produce,
 
-KRB5_KTNAME=FILE:/path/to/unreadable/krb5.keytab cargo run --example krb5 nfs@example.com
+KRB5_KTNAME=FILE:/path/to/unreadable/krb5.keytab cargo run --example krb5 nfs@host.example.com
 import name
 canonicalize name for kerberos 5
-server name: nfs@ken-ohki.ryu-oh.org, server cname: nfs/ken-ohki.ryu-oh.org@
+server name: nfs@host.example.com, server cname: nfs/host.example.com@
 gssapi major error Unspecified GSS failure.  Minor code may provide more information
 gssapi minor error The routine must be called again to complete its function
 gssapi minor error The token's validity period has expired
@@ -55,7 +73,7 @@ use libgssapi::{
     name::Name,
     credential::{Cred, CredUsage},
     error::Error,
-    context::{CtxFlags, ClientCtx, ServerCtx, SecurityContext},
+    context::{CtxFlags, CtxInfo, ClientCtx, ServerCtx, SecurityContext},
     util::Buf,
     oid::{OidSet, GSS_NT_HOSTBASED_SERVICE, GSS_MECH_KRB5},
 };
@@ -107,7 +125,9 @@ fn run(service_name: &[u8]) -> Result<(), Error> {
             }
         }
     }
-    println!("security context created successfully");
+    println!("security context initialized successfully");
+    println!("client ctx info: {:#?}", client_ctx.info()?);
+    println!("server ctx info: {:#?}", server_ctx.info()?);
     let secret_msg = client_ctx.wrap(true, b"super secret message")?;
     let decoded_msg = server_ctx.unwrap(&*secret_msg)?;
     println!("the decrypted message is: '{}'", String::from_utf8_lossy(&*decoded_msg));
