@@ -10,14 +10,13 @@ use libgssapi_sys::{
 use std::{
     self,
     cmp::{Eq, Ord, Ordering, PartialEq, PartialOrd},
+    collections::HashMap,
+    fmt,
     hash::{Hash, Hasher},
+    iter::{ExactSizeIterator, FromIterator, IntoIterator, Iterator},
     mem,
     ops::{Deref, Index},
-    slice,
-    ptr,
-    iter::{Iterator, IntoIterator, ExactSizeIterator, FromIterator},
-    fmt,
-    collections::HashMap,
+    ptr, slice,
 };
 
 // CR estokes: do I need the attributes from rfc 5587? There are loads of them.
@@ -57,8 +56,7 @@ pub static GSS_MA_NEGOEX_AND_SPNEGO: Oid =
 pub static GSS_SEC_CONTEXT_SASL_SSF: Oid =
     Oid::from_slice(b"\x2a\x86\x48\x86\xf7\x12\x01\x02\x02\x05\x0f");
 
-pub static GSS_MECH_KRB5: Oid =
-    Oid::from_slice(b"\x2a\x86\x48\x86\xf7\x12\x01\x02\x02");
+pub static GSS_MECH_KRB5: Oid = Oid::from_slice(b"\x2a\x86\x48\x86\xf7\x12\x01\x02\x02");
 
 pub static GSS_MECH_IAKERB: Oid = Oid::from_slice(b"\x2b\x06\x01\x05\x02\x05");
 
@@ -72,25 +70,32 @@ pub(crate) const NO_OID: gss_OID = ptr::null_mut();
 pub(crate) const NO_OID_SET: gss_OID_set = ptr::null_mut();
 
 lazy_static! {
-    static ref OIDS: HashMap<Oid, &'static str> = HashMap::from_iter([
-        (GSS_NT_USER_NAME, "GSS_NT_USER_NAME"),
-        (GSS_NT_MACHINE_UID_NAME, "GSS_NT_MACHINE_UID_NAME"),
-        (GSS_NT_STRING_UID_NAME, "GSS_NT_STRING_UID_NAME"),
-        (GSS_NT_HOSTBASED_SERVICE, "GSS_NT_HOSTBASED_SERVICE"),
-        (GSS_NT_ANONYMOUS, "GSS_NT_ANONYMOUS"),
-        (GSS_NT_EXPORT_NAME, "GSS_NT_EXPORT_NAME"),
-        (GSS_NT_COMPOSITE_EXPORT, "GSS_NT_COMPOSITE_EXPORT"),
-        (GSS_INQ_SSPI_SESSION_KEY, "GSS_INQ_SSPI_SESSION_KEY"),
-        (GSS_INQ_NEGOEX_KEY, "GSS_INQ_NEGOEX_KEY"),
-        (GSS_INQ_NEGOEX_VERIFY_KEY, "GSS_INQ_NEGOEX_VERIFY_KEY"),
-        (GSS_MA_NEGOEX_AND_SPNEGO, "GSS_MA_NEGOEX_AND_SPNEGO"),
-        (GSS_SEC_CONTEXT_SASL_SSF, "GSS_SEC_CONTEXT_SASL_SSF"),
-        (GSS_MECH_KRB5, "GSS_MECH_KRB5"),
-        (GSS_MECH_IAKERB, "GSS_MECH_IAKERB"),
-        (GSS_NT_KRB5_PRINCIPAL, "GSS_KRB5_NT_PRINCIPAL"),
-        (GSS_KRB5_CRED_NO_CI_FLAGS_X, "GSS_KRB5_CRED_NO_CI_FLAGS_X"),
-        (GSS_KRB5_GET_CRED_IMPERSONATOR, "GSS_KRB5_GET_CRED_IMPERSONATOR")
-    ].iter().copied());
+    static ref OIDS: HashMap<Oid, &'static str> = HashMap::from_iter(
+        [
+            (GSS_NT_USER_NAME, "GSS_NT_USER_NAME"),
+            (GSS_NT_MACHINE_UID_NAME, "GSS_NT_MACHINE_UID_NAME"),
+            (GSS_NT_STRING_UID_NAME, "GSS_NT_STRING_UID_NAME"),
+            (GSS_NT_HOSTBASED_SERVICE, "GSS_NT_HOSTBASED_SERVICE"),
+            (GSS_NT_ANONYMOUS, "GSS_NT_ANONYMOUS"),
+            (GSS_NT_EXPORT_NAME, "GSS_NT_EXPORT_NAME"),
+            (GSS_NT_COMPOSITE_EXPORT, "GSS_NT_COMPOSITE_EXPORT"),
+            (GSS_INQ_SSPI_SESSION_KEY, "GSS_INQ_SSPI_SESSION_KEY"),
+            (GSS_INQ_NEGOEX_KEY, "GSS_INQ_NEGOEX_KEY"),
+            (GSS_INQ_NEGOEX_VERIFY_KEY, "GSS_INQ_NEGOEX_VERIFY_KEY"),
+            (GSS_MA_NEGOEX_AND_SPNEGO, "GSS_MA_NEGOEX_AND_SPNEGO"),
+            (GSS_SEC_CONTEXT_SASL_SSF, "GSS_SEC_CONTEXT_SASL_SSF"),
+            (GSS_MECH_KRB5, "GSS_MECH_KRB5"),
+            (GSS_MECH_IAKERB, "GSS_MECH_IAKERB"),
+            (GSS_NT_KRB5_PRINCIPAL, "GSS_KRB5_NT_PRINCIPAL"),
+            (GSS_KRB5_CRED_NO_CI_FLAGS_X, "GSS_KRB5_CRED_NO_CI_FLAGS_X"),
+            (
+                GSS_KRB5_GET_CRED_IMPERSONATOR,
+                "GSS_KRB5_GET_CRED_IMPERSONATOR"
+            )
+        ]
+        .iter()
+        .copied()
+    );
 }
 
 /* this mirrors the C struct, but has a proper const pointer AS
@@ -119,17 +124,16 @@ unsafe impl Sync for Oid {}
 
 impl fmt::Debug for Oid {
     fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
-        write!(f, "{:?}", &*self as &[u8])
+        match OIDS.get(self) {
+            None => write!(f, "{:?}", &*self as &[u8]),
+            Some(name) => write!(f, "{}", name),
+        }
     }
 }
 
 impl fmt::Display for Oid {
     fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
-        match OIDS.get(self) {
-            None => write!(f, "unknown: {:?}", &*self as &[u8]),
-            Some(name) => write!(f, "{}", name),
-        }
-
+        fmt::Debug::fmt(self, f)
     }
 }
 
@@ -143,7 +147,7 @@ impl Deref for Oid {
 
 impl PartialEq for Oid {
     fn eq(&self, other: &Oid) -> bool {
-        &*self == &*other
+        &*self as &[u8] == &*other as &[u8]
     }
 }
 
@@ -273,7 +277,7 @@ impl<'a> IntoIterator for &'a OidSet {
     fn into_iter(self) -> Self::IntoIter {
         OidSetIter {
             current: 0,
-            set: self
+            set: self,
         }
     }
 }
@@ -305,13 +309,13 @@ impl OidSet {
     pub(crate) unsafe fn to_c(&self) -> gss_OID_set {
         self.0
     }
-    
+
     /// How many oids are in this set
     pub fn len(&self) -> usize {
         unsafe { (*self.0).count as usize }
     }
-    
-    /// Add an OID to the set. 
+
+    /// Add an OID to the set.
     pub fn add(&mut self, id: &Oid) -> Result<(), Error> {
         let mut minor = GSS_S_COMPLETE;
         let major = unsafe {
