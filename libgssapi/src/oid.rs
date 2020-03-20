@@ -181,8 +181,8 @@ impl From<gss_OID_desc> for Oid {
 
 impl Oid {
     #[allow(dead_code)]
-    pub(crate) unsafe fn from_c<'a>(ptr: gss_OID) -> Option<&'a Oid> {
-        mem::transmute::<gss_OID, *const Oid>(ptr).as_ref()
+    pub(crate) unsafe fn from_c<'a>(ptr: gss_OID) -> &'a Oid {
+        &*mem::transmute::<gss_OID, *const Oid>(ptr)
     }
 
     pub(crate) unsafe fn to_c(&self) -> gss_OID {

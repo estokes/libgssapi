@@ -18,14 +18,15 @@ pub struct Cred(gss_cred_id_t);
 
 impl Drop for Cred {
     fn drop(&mut self) {
-        let mut minor = GSS_S_COMPLETE;
-        let _major = unsafe {
-            gss_release_cred(
-                &mut minor as *mut OM_uint32,
-                &mut self.0 as *mut gss_cred_id_t,
-            )
-        };
-        // CR estokes: log errors? panic?
+        if !self.0.is_null() {
+            let mut minor = GSS_S_COMPLETE;
+            let _major = unsafe {
+                gss_release_cred(
+                    &mut minor as *mut OM_uint32,
+                    &mut self.0 as *mut gss_cred_id_t,
+                )
+            };
+        }
     }
 }
 

@@ -2,18 +2,17 @@ use crate::{
     credential::Cred,
     error::{gss_error, Error},
     name::Name,
-    util::{Buf, BufRef},
     oid::{Oid, NO_OID},
+    util::{Buf, BufRef},
 };
 use libgssapi_sys::{
-    gss_OID, gss_accept_sec_context, gss_buffer_desc, gss_channel_bindings_struct,
-    gss_cred_id_struct, gss_cred_id_t, gss_ctx_id_t,
-    gss_delete_sec_context, gss_init_sec_context, gss_name_t, gss_wrap,
-    gss_unwrap,
-    OM_uint32, GSS_C_ANON_FLAG, GSS_C_CONF_FLAG, GSS_C_DELEG_FLAG,
-    GSS_C_DELEG_POLICY_FLAG, GSS_C_INTEG_FLAG, GSS_C_MUTUAL_FLAG, GSS_C_PROT_READY_FLAG,
-    GSS_C_QOP_DEFAULT, GSS_C_REPLAY_FLAG, GSS_C_SEQUENCE_FLAG, GSS_C_TRANS_FLAG,
-    GSS_S_COMPLETE, _GSS_C_INDEFINITE, _GSS_S_CONTINUE_NEEDED,
+    gss_OID, gss_OID_desc, gss_accept_sec_context, gss_buffer_desc,
+    gss_channel_bindings_struct, gss_cred_id_struct, gss_cred_id_t, gss_ctx_id_t,
+    gss_delete_sec_context, gss_init_sec_context, gss_inquire_context, gss_name_struct,
+    gss_name_t, gss_unwrap, gss_wrap, OM_uint32, GSS_C_ANON_FLAG, GSS_C_CONF_FLAG,
+    GSS_C_DELEG_FLAG, GSS_C_DELEG_POLICY_FLAG, GSS_C_INTEG_FLAG, GSS_C_MUTUAL_FLAG,
+    GSS_C_PROT_READY_FLAG, GSS_C_QOP_DEFAULT, GSS_C_REPLAY_FLAG, GSS_C_SEQUENCE_FLAG,
+    GSS_C_TRANS_FLAG, GSS_S_COMPLETE, _GSS_C_INDEFINITE, _GSS_S_CONTINUE_NEEDED,
 };
 use parking_lot::Mutex;
 use std::{ptr, sync::Arc};
@@ -79,13 +78,64 @@ fn unwrap(ctx: gss_ctx_id_t, msg: &[u8]) -> Result<Buf, Error> {
             msg.to_c(),
             out.to_c(),
             ptr::null_mut::<i32>(),
-            ptr::null_mut::<OM_uint32>()
+            ptr::null_mut::<OM_uint32>(),
         )
     };
     if major == GSS_S_COMPLETE {
         Ok(out)
     } else {
-        Err(Error {major, minor})
+        Err(Error { major, minor })
+    }
+}
+
+#[derive(Debug)]
+pub struct CtxInfo {
+    pub source_name: Name,
+    pub target_name: Name,
+    pub lifetime: u32,
+    pub mechanism: &'static Oid,
+    pub flags: CtxFlags,
+    pub local: bool,
+    pub open: bool,
+}
+
+fn info(ctx: gss_ctx_id_t) -> Result<CtxInfo, Error> {
+    let mut source_name = ptr::null_mut::<gss_name_struct>();
+    let mut target_name = ptr::null_mut::<gss_name_struct>();
+    let mut lifetime: u32 = 0;
+    let mut mechanism = ptr::null_mut::<gss_OID_desc>();
+    let mut flags: u32 = 0;
+    let mut local: i32 = 0;
+    let mut open: i32 = 0;
+    let mut minor: u32 = 0;
+    let major = unsafe {
+        gss_inquire_context(
+            &mut minor as *mut u32,
+            ctx,
+            &mut source_name as *mut gss_name_t,
+            &mut target_name as *mut gss_name_t,
+            &mut lifetime as *mut u32,
+            &mut mechanism as *mut gss_OID,
+            &mut flags as *mut u32,
+            &mut local as *mut i32,
+            &mut open as *mut i32
+        )
+    };
+    let info = unsafe {
+        CtxInfo {
+            source_name: Name::from_c(source_name),
+            target_name: Name::from_c(target_name),
+            lifetime,
+            mechanism: Oid::from_c(mechanism),
+            flags: CtxFlags::from_bits(flags).unwrap_or(CtxFlags::empty()),
+            local: local > 0,
+            open: open > 0
+        }
+    };
+    if gss_error(major) > 0 {
+        Err(Error { major, minor })
+    } else {
+        Ok(info)
     }
 }
 
@@ -99,6 +149,9 @@ pub trait SecurityContext {
     /// Unwrap a wrapped message, checking it's integrity and
     /// decrypting it if necessary.
     fn unwrap(&self, msg: &[u8]) -> Result<Buf, Error>;
+
+    /// Get information about a security context
+    fn info(&self) -> Result<CtxInfo, Error>;
 }
 
 #[derive(Debug)]
@@ -185,12 +238,12 @@ impl ServerCtx {
             match &inner.delegated_cred {
                 None => unsafe {
                     inner.delegated_cred = Some(Cred::from_c(delegated_cred));
-                }
+                },
                 Some(current) => unsafe {
                     if current.to_c() != delegated_cred {
                         inner.delegated_cred = Some(Cred::from_c(delegated_cred));
                     }
-                }
+                },
             }
         }
         if let Some(new_flags) = CtxFlags::from_bits(flag_bits) {
@@ -223,6 +276,11 @@ impl SecurityContext for ServerCtx {
     fn unwrap(&self, msg: &[u8]) -> Result<Buf, Error> {
         let inner = self.0.lock();
         unwrap(inner.ctx, msg)
+    }
+
+    fn info(&self) -> Result<CtxInfo, Error> {
+        let inner = self.0.lock();
+        info(inner.ctx)
     }
 }
 
@@ -269,7 +327,7 @@ impl ClientCtx {
         cred: Cred,
         target: Name,
         flags: CtxFlags,
-        mech: Option<&'static Oid>
+        mech: Option<&'static Oid>,
     ) -> ClientCtx {
         let inner = ClientCtxInner {
             ctx: ptr::null_mut(),
@@ -277,7 +335,7 @@ impl ClientCtx {
             target: target,
             flags,
             state: ClientCtxState::Uninitialized,
-            mech
+            mech,
         };
         ClientCtx(Arc::new(Mutex::new(inner)))
     }
@@ -350,5 +408,10 @@ impl SecurityContext for ClientCtx {
     fn unwrap(&self, msg: &[u8]) -> Result<Buf, Error> {
         let inner = self.0.lock();
         unwrap(inner.ctx, msg)
+    }
+
+    fn info(&self) -> Result<CtxInfo, Error> {
+        let inner = self.0.lock();
+        info(inner.ctx)
     }
 }

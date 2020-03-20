@@ -17,16 +17,14 @@ unsafe impl Sync for Name {}
 
 impl Drop for Name {
     fn drop(&mut self) {
-        let mut _minor = GSS_S_COMPLETE;
-        let major = unsafe {
-            gss_release_name(
-                &mut _minor as *mut OM_uint32,
-                &mut self.0 as *mut gss_name_t,
-            )
-        };
-        if major != GSS_S_COMPLETE {
-            // CR estokes: log this? panic?
-            ()
+        if !self.0.is_null() {
+            let mut _minor = GSS_S_COMPLETE;
+            let _major = unsafe {
+                gss_release_name(
+                    &mut _minor as *mut OM_uint32,
+                    &mut self.0 as *mut gss_name_t,
+                )
+            };
         }
     }
 }
