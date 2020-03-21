@@ -1,6 +1,6 @@
 use crate::{
     credential::Cred,
-    error::{gss_error, Error},
+    error::{gss_error, Error, MajorFlags},
     name::Name,
     oid::{Oid, NO_OID},
     util::{Buf, BufRef},
@@ -63,7 +63,10 @@ fn wrap(ctx: gss_ctx_id_t, encrypt: bool, msg: &[u8]) -> Result<Buf, Error> {
     if major == GSS_S_COMPLETE {
         Ok(enc_msg)
     } else {
-        Err(Error { major, minor })
+        Err(Error {
+            major: unsafe { MajorFlags::from_bits_unchecked(major) },
+            minor
+        })
     }
 }
 
@@ -84,7 +87,10 @@ fn unwrap(ctx: gss_ctx_id_t, msg: &[u8]) -> Result<Buf, Error> {
     if major == GSS_S_COMPLETE {
         Ok(out)
     } else {
-        Err(Error { major, minor })
+        Err(Error {
+            major: unsafe { MajorFlags::from_bits_unchecked(major) },
+            minor
+        })
     }
 }
 
@@ -133,7 +139,10 @@ fn info(ctx: gss_ctx_id_t) -> Result<CtxInfo, Error> {
         }
     };
     if gss_error(major) > 0 {
-        Err(Error { major, minor })
+        Err(Error {
+            major: unsafe { MajorFlags::from_bits_unchecked(major) },
+            minor
+        })
     } else {
         Ok(info)
     }
@@ -250,7 +259,10 @@ impl ServerCtx {
             inner.flags.insert(new_flags);
         }
         if gss_error(major) > 0 {
-            let e = Error { major, minor };
+            let e = Error {
+                major: unsafe { MajorFlags::from_bits_unchecked(major) },
+                minor
+            };
             inner.state = ServerCtxState::Failed(e);
             Err(e)
         } else if major & _GSS_S_CONTINUE_NEEDED > 0 {
@@ -382,7 +394,10 @@ impl ClientCtx {
             )
         };
         if gss_error(major) > 0 {
-            let e = Error { major, minor };
+            let e = Error {
+                major: unsafe { MajorFlags::from_bits_unchecked(major) },
+                minor
+            };
             inner.state = ClientCtxState::Failed(e);
             Err(e)
         } else if major & _GSS_S_CONTINUE_NEEDED > 0 {

@@ -1,5 +1,5 @@
 use crate::{
-    error::Error,
+    error::{Error, MajorFlags},
     util::{Buf, BufRef},
     oid::Oid,
 };
@@ -86,7 +86,10 @@ impl Name {
         if major == GSS_S_COMPLETE {
             Ok(Name(name))
         } else {
-            Err(Error { major, minor })
+            Err(Error {
+                major: unsafe { MajorFlags::from_bits_unchecked(major) },
+                minor
+            })
         }
     }
 
@@ -110,7 +113,10 @@ impl Name {
         if major == GSS_S_COMPLETE {
             Ok(Name(out))
         } else {
-            Err(Error { major, minor })
+            Err(Error {
+                major: unsafe { MajorFlags::from_bits_unchecked(major) },
+                minor
+            })
         }
     }
 
@@ -129,7 +135,10 @@ impl Name {
         if major == GSS_S_COMPLETE {
             Ok(Name(copy))
         } else {
-            Err(Error { major, minor })
+            Err(Error {
+                major: unsafe { MajorFlags::from_bits_unchecked(major) },
+                minor
+            })
         }
     }
 }

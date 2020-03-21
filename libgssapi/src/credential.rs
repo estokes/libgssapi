@@ -1,4 +1,4 @@
-use crate::{error::Error, name::Name, oid::{OidSet, NO_OID_SET}};
+use crate::{error::{Error, MajorFlags}, name::Name, oid::{OidSet, NO_OID_SET}};
 use libgssapi_sys::{
     gss_OID_set, gss_acquire_cred, gss_cred_id_struct, gss_cred_id_t, gss_cred_usage_t,
     gss_name_struct, gss_release_cred, OM_uint32, GSS_C_ACCEPT,
@@ -79,7 +79,10 @@ impl Cred {
         if major == GSS_S_COMPLETE {
             Ok(Cred(cred))
         } else {
-            Err(Error { major, minor })
+            Err(Error {
+                major: unsafe { MajorFlags::from_bits_unchecked(major) },
+                minor
+            })
         }
     }
 

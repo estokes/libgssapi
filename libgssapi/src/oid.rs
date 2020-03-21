@@ -1,7 +1,7 @@
 /// Oids are BER encoded and defined in the various RFCs. Oids are
 /// horrible. This module is horrible. I'm so pleased to share my
 /// horror with you.
-use crate::error::Error;
+use crate::error::{Error, MajorFlags};
 use libgssapi_sys::{
     gss_OID, gss_OID_desc, gss_OID_set, gss_OID_set_desc, gss_add_oid_set_member,
     gss_create_empty_oid_set, gss_release_oid_set, gss_test_oid_set_member, OM_uint32,
@@ -297,7 +297,10 @@ impl OidSet {
         if major == GSS_S_COMPLETE {
             Ok(OidSet(out))
         } else {
-            Err(Error { major, minor })
+            Err(Error {
+                major: unsafe { MajorFlags::from_bits_unchecked(major) },
+                minor
+            })
         }
     }
 
@@ -328,11 +331,14 @@ impl OidSet {
         if major == GSS_S_COMPLETE {
             Ok(())
         } else {
-            Err(Error { major, minor })
+            Err(Error {
+                major: unsafe { MajorFlags::from_bits_unchecked(major) },
+                minor
+            })
         }
     }
 
-    /// Ask gssapi whether it think the specified oid is in the
+    /// Ask gssapi whether it thinks the specified oid is in the
     /// specified set.
     pub fn contains(&self, id: &Oid) -> Result<bool, Error> {
         let mut minor = GSS_S_COMPLETE;
@@ -348,7 +354,10 @@ impl OidSet {
         if major == GSS_S_COMPLETE {
             Ok(if present != 0 { true } else { false })
         } else {
-            Err(Error { major, minor })
+            Err(Error {
+                major: unsafe { MajorFlags::from_bits_unchecked(major) },
+                minor
+            })
         }
     }
 }
