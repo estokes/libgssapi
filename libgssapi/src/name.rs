@@ -5,7 +5,7 @@ use crate::{
 };
 use libgssapi_sys::{
     gss_OID, gss_OID_desc, gss_canonicalize_name, gss_display_name, gss_duplicate_name,
-    gss_import_name, gss_name_struct, gss_name_t, gss_release_name,
+    gss_import_name, gss_name_struct, gss_name_t, gss_release_name, gss_export_name,
     OM_uint32, GSS_S_COMPLETE,
 };
 use std::{ptr, fmt};
@@ -112,6 +112,29 @@ impl Name {
         };
         if major == GSS_S_COMPLETE {
             Ok(Name(out))
+        } else {
+            Err(Error {
+                major: unsafe { MajorFlags::from_bits_unchecked(major) },
+                minor
+            })
+        }
+    }
+
+    /// Produce a contiguous string representation of a canonicalized
+    /// name suitable for direct comparison. You must either use a
+    /// canonical name, or call canonicolize before using this method.
+    pub fn export(&self) -> Result<Buf, Error> {
+        let mut out = Buf::empty();
+        let mut minor = GSS_S_COMPLETE;
+        let major = unsafe {
+            gss_export_name(
+                &mut minor as *mut OM_uint32,
+                self.0,
+                out.to_c()
+            )
+        };
+        if major == GSS_S_COMPLETE {
+            Ok(out)
         } else {
             Err(Error {
                 major: unsafe { MajorFlags::from_bits_unchecked(major) },
