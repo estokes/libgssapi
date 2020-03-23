@@ -193,7 +193,7 @@ impl Oid {
         mem::transmute::<*const Oid, gss_OID>(self as *const Oid)
     }
 
-    /// If you need to use an OID I didn't define above, then you must
+    /// If you need to use an OID I didn't define, then you must
     /// construct a BER encoded slice of it's components and store it
     /// in static memory (yes the standard REQUIRES that). Then you
     /// can pass it to this function and get a proper `Oid` handle. If
