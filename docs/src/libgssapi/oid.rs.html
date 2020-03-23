@@ -361,6 +361,14 @@
 <span id="361">361</span>
 <span id="362">362</span>
 <span id="363">363</span>
+<span id="364">364</span>
+<span id="365">365</span>
+<span id="366">366</span>
+<span id="367">367</span>
+<span id="368">368</span>
+<span id="369">369</span>
+<span id="370">370</span>
+<span id="371">371</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="doccomment">/// Oids are BER encoded and defined in the various RFCs. Oids are</span>
 <span class="doccomment">/// horrible. This module is horrible. I&#39;m so pleased to share my</span>
@@ -608,13 +616,15 @@ if that happens I guess file a bug.
 
 <span class="kw">impl</span> <span class="ident">Drop</span> <span class="kw">for</span> <span class="ident">OidSet</span> {
     <span class="kw">fn</span> <span class="ident">drop</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">_minor</span> <span class="op">=</span> <span class="ident">GSS_S_COMPLETE</span>;
-        <span class="kw">let</span> <span class="ident">_major</span> <span class="op">=</span> <span class="kw">unsafe</span> {
-            <span class="ident">gss_release_oid_set</span>(
-                <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">_minor</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">OM_uint32</span>,
-                <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>.<span class="number">0</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">gss_OID_set</span>,
-            )
-        };
+        <span class="kw">if</span> <span class="op">!</span><span class="self">self</span>.<span class="number">0</span>.<span class="ident">is_null</span>() {
+            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">_minor</span> <span class="op">=</span> <span class="ident">GSS_S_COMPLETE</span>;
+            <span class="kw">let</span> <span class="ident">_major</span> <span class="op">=</span> <span class="kw">unsafe</span> {
+                <span class="ident">gss_release_oid_set</span>(
+                    <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">_minor</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">OM_uint32</span>,
+                    <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>.<span class="number">0</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">gss_OID_set</span>,
+                )
+            };
+        }
         <span class="comment">// CR estokes: What to do on error?</span>
     }
 }
@@ -643,6 +653,12 @@ if that happens I guess file a bug.
             <span class="ident">current</span>: <span class="number">0</span>,
             <span class="ident">set</span>: <span class="self">self</span>,
         }
+    }
+}
+
+<span class="kw">impl</span> <span class="ident">fmt</span>::<span class="ident">Debug</span> <span class="kw">for</span> <span class="ident">OidSet</span> {
+    <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">fmt</span>::<span class="ident">Formatter</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">fmt</span>::<span class="ident">Error</span><span class="op">&gt;</span> {
+        <span class="ident">fmt</span>::<span class="ident">Debug</span>::<span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">into_iter</span>().<span class="ident">collect</span>::<span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="kw">_</span><span class="op">&gt;</span><span class="op">&gt;</span>(), <span class="ident">f</span>)
     }
 }
 

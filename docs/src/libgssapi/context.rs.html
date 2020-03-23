@@ -619,6 +619,10 @@
 <span id="619">619</span>
 <span id="620">620</span>
 <span id="621">621</span>
+<span id="622">622</span>
+<span id="623">623</span>
+<span id="624">624</span>
+<span id="625">625</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="kw">use</span> <span class="kw">crate</span>::{
     <span class="ident">credential</span>::<span class="ident">Cred</span>,
@@ -782,10 +786,14 @@
         }
     );
     <span class="kw">if</span> <span class="ident">gss_error</span>(<span class="ident">major</span>) <span class="op">&gt;</span> <span class="number">0</span> {
-        <span class="prelude-val">Err</span>(<span class="ident">Error</span> {
-            <span class="ident">major</span>: <span class="ident">MajorFlags</span>::<span class="ident">from_bits_unchecked</span>(<span class="ident">major</span>),
-            <span class="ident">minor</span>
-        })
+        <span class="comment">// make sure we free anything that was successfully allocated</span>
+        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">source_name</span>) <span class="op">=</span> <span class="ident">ifo</span>.<span class="ident">source_name</span> {
+            <span class="ident">Name</span>::<span class="ident">from_c</span>(<span class="ident">source_name</span>);
+        }
+        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">target_name</span>) <span class="op">=</span> <span class="ident">ifo</span>.<span class="ident">target_name</span> {
+            <span class="ident">Name</span>::<span class="ident">from_c</span>(<span class="ident">target_name</span>);
+        }
+        <span class="prelude-val">Err</span>(<span class="ident">Error</span> { <span class="ident">major</span>: <span class="ident">MajorFlags</span>::<span class="ident">from_bits_unchecked</span>(<span class="ident">major</span>), <span class="ident">minor</span> })
     } <span class="kw">else</span> {
         <span class="prelude-val">Ok</span>(<span class="ident">ifo</span>)
     }

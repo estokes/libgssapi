@@ -1,1 +1,1 @@
-initSidebarItems({"enum":[["CredUsage",""]],"struct":[["Cred","gssapi credentials."]]});
+initSidebarItems({"enum":[["CredUsage",""]],"struct":[["Cred","gssapi credentials."],["CredInfo",""]]});
