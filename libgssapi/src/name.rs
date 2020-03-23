@@ -67,7 +67,8 @@ impl Name {
     }
     
     /// parse the specified bytes as a gssapi name, with optional
-    /// `kind` e.g. `GSS_NT_HOSTBASED_SERVICE` or `GSS_NT_KRB5_PRINCIPAL`
+    /// `kind` e.g. `GSS_NT_HOSTBASED_SERVICE` or
+    /// `GSS_NT_KRB5_PRINCIPAL`.
     pub fn new(s: &[u8], kind: Option<&Oid>) -> Result<Self, Error> {
         let mut buf = BufRef::from(s);
         let mut minor = GSS_S_COMPLETE;
@@ -122,7 +123,7 @@ impl Name {
 
     /// Produce a contiguous string representation of a canonicalized
     /// name suitable for direct comparison. You must either use a
-    /// canonical name, or call canonicolize before using this method.
+    /// canonical name, or call canonicalize before using this method.
     pub fn export(&self) -> Result<Buf, Error> {
         let mut out = Buf::empty();
         let mut minor = GSS_S_COMPLETE;
@@ -143,8 +144,7 @@ impl Name {
         }
     }
 
-    /// Duplicate the name at the gssapi level. I'm not sure why you'd
-    /// need to do this, since name is cloneable, but it's here anyway.
+    /// Duplicate the name.
     pub fn duplicate(&self) -> Result<Self, Error> {
         let mut copy = ptr::null_mut::<gss_name_struct>();
         let mut minor = GSS_S_COMPLETE;

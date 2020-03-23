@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source to the Rust file `libgssapi/src/oid.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>oid.rs.html -- source</title><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../dark.css"><link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle"><script src="../../storage.js"></script><noscript><link rel="stylesheet" href="../../noscript.css"></noscript><link rel="shortcut icon" href="../../favicon.ico"><style type="text/css">#crate-search{background-image:url("../../down-arrow.svg");}</style></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div><a href='../../libgssapi/index.html'><div class='logo-container'><img src='../../rust-logo.png' alt='logo'></div></a></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../theme.js"></script><nav class="sub"><form class="search-form"><div class="search-container"><div><select id="crate-search"><option value="All crates">All crates</option></select><input class="search-input" name="search" disabled autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"></div><a id="settings-menu" href="../../settings.html"><img src="../../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1">  1</span>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source to the Rust file `src/oid.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>oid.rs.html -- source</title><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../dark.css"><link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle"><script src="../../storage.js"></script><noscript><link rel="stylesheet" href="../../noscript.css"></noscript><link rel="shortcut icon" href="../../favicon.ico"><style type="text/css">#crate-search{background-image:url("../../down-arrow.svg");}</style></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div><a href='../../libgssapi/index.html'><div class='logo-container'><img src='../../rust-logo.png' alt='logo'></div></a></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../theme.js"></script><nav class="sub"><form class="search-form"><div class="search-container"><div><select id="crate-search"><option value="All crates">All crates</option></select><input class="search-input" name="search" disabled autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"></div><a id="settings-menu" href="../../settings.html"><img src="../../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1">  1</span>
 <span id="2">  2</span>
 <span id="3">  3</span>
 <span id="4">  4</span>
@@ -348,11 +348,24 @@
 <span id="348">348</span>
 <span id="349">349</span>
 <span id="350">350</span>
+<span id="351">351</span>
+<span id="352">352</span>
+<span id="353">353</span>
+<span id="354">354</span>
+<span id="355">355</span>
+<span id="356">356</span>
+<span id="357">357</span>
+<span id="358">358</span>
+<span id="359">359</span>
+<span id="360">360</span>
+<span id="361">361</span>
+<span id="362">362</span>
+<span id="363">363</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="doccomment">/// Oids are BER encoded and defined in the various RFCs. Oids are</span>
 <span class="doccomment">/// horrible. This module is horrible. I&#39;m so pleased to share my</span>
 <span class="doccomment">/// horror with you.</span>
-<span class="kw">use</span> <span class="kw">crate</span>::<span class="ident">error</span>::<span class="ident">Error</span>;
+<span class="kw">use</span> <span class="kw">crate</span>::<span class="ident">error</span>::{<span class="ident">Error</span>, <span class="ident">MajorFlags</span>};
 <span class="kw">use</span> <span class="ident">libgssapi_sys</span>::{
     <span class="ident">gss_OID</span>, <span class="ident">gss_OID_desc</span>, <span class="ident">gss_OID_set</span>, <span class="ident">gss_OID_set_desc</span>, <span class="ident">gss_add_oid_set_member</span>,
     <span class="ident">gss_create_empty_oid_set</span>, <span class="ident">gss_release_oid_set</span>, <span class="ident">gss_test_oid_set_member</span>, <span class="ident">OM_uint32</span>,
@@ -361,14 +374,13 @@
 <span class="kw">use</span> <span class="ident">std</span>::{
     <span class="self">self</span>,
     <span class="ident">cmp</span>::{<span class="ident">Eq</span>, <span class="ident">Ord</span>, <span class="ident">Ordering</span>, <span class="ident">PartialEq</span>, <span class="ident">PartialOrd</span>},
+    <span class="ident">collections</span>::<span class="ident">HashMap</span>,
+    <span class="ident">fmt</span>,
     <span class="ident">hash</span>::{<span class="ident">Hash</span>, <span class="ident">Hasher</span>},
+    <span class="ident">iter</span>::{<span class="ident">ExactSizeIterator</span>, <span class="ident">FromIterator</span>, <span class="ident">IntoIterator</span>, <span class="ident">Iterator</span>},
     <span class="ident">mem</span>,
     <span class="ident">ops</span>::{<span class="ident">Deref</span>, <span class="ident">Index</span>},
-    <span class="ident">slice</span>,
-    <span class="ident">ptr</span>,
-    <span class="ident">iter</span>::{<span class="ident">Iterator</span>, <span class="ident">IntoIterator</span>, <span class="ident">ExactSizeIterator</span>, <span class="ident">FromIterator</span>},
-    <span class="ident">fmt</span>,
-    <span class="ident">collections</span>::<span class="ident">HashMap</span>,
+    <span class="ident">ptr</span>, <span class="ident">slice</span>,
 };
 
 <span class="comment">// CR estokes: do I need the attributes from rfc 5587? There are loads of them.</span>
@@ -408,8 +420,7 @@
 <span class="kw">pub</span> <span class="kw">static</span> <span class="ident">GSS_SEC_CONTEXT_SASL_SSF</span>: <span class="ident">Oid</span> <span class="op">=</span>
     <span class="ident">Oid</span>::<span class="ident">from_slice</span>(<span class="string">b&quot;\x2a\x86\x48\x86\xf7\x12\x01\x02\x02\x05\x0f&quot;</span>);
 
-<span class="kw">pub</span> <span class="kw">static</span> <span class="ident">GSS_MECH_KRB5</span>: <span class="ident">Oid</span> <span class="op">=</span>
-    <span class="ident">Oid</span>::<span class="ident">from_slice</span>(<span class="string">b&quot;\x2a\x86\x48\x86\xf7\x12\x01\x02\x02&quot;</span>);
+<span class="kw">pub</span> <span class="kw">static</span> <span class="ident">GSS_MECH_KRB5</span>: <span class="ident">Oid</span> <span class="op">=</span> <span class="ident">Oid</span>::<span class="ident">from_slice</span>(<span class="string">b&quot;\x2a\x86\x48\x86\xf7\x12\x01\x02\x02&quot;</span>);
 
 <span class="kw">pub</span> <span class="kw">static</span> <span class="ident">GSS_MECH_IAKERB</span>: <span class="ident">Oid</span> <span class="op">=</span> <span class="ident">Oid</span>::<span class="ident">from_slice</span>(<span class="string">b&quot;\x2b\x06\x01\x05\x02\x05&quot;</span>);
 
@@ -423,25 +434,32 @@
 <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">const</span> <span class="ident">NO_OID_SET</span>: <span class="ident">gss_OID_set</span> <span class="op">=</span> <span class="ident">ptr</span>::<span class="ident">null_mut</span>();
 
 <span class="macro">lazy_static</span><span class="macro">!</span> {
-    <span class="kw">static</span> <span class="kw-2">ref</span> <span class="ident">OIDS</span>: <span class="ident">HashMap</span><span class="op">&lt;</span><span class="ident">Oid</span>, <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">HashMap</span>::<span class="ident">from_iter</span>([
-        (<span class="ident">GSS_NT_USER_NAME</span>, <span class="string">&quot;GSS_NT_USER_NAME&quot;</span>),
-        (<span class="ident">GSS_NT_MACHINE_UID_NAME</span>, <span class="string">&quot;GSS_NT_MACHINE_UID_NAME&quot;</span>),
-        (<span class="ident">GSS_NT_STRING_UID_NAME</span>, <span class="string">&quot;GSS_NT_STRING_UID_NAME&quot;</span>),
-        (<span class="ident">GSS_NT_HOSTBASED_SERVICE</span>, <span class="string">&quot;GSS_NT_HOSTBASED_SERVICE&quot;</span>),
-        (<span class="ident">GSS_NT_ANONYMOUS</span>, <span class="string">&quot;GSS_NT_ANONYMOUS&quot;</span>),
-        (<span class="ident">GSS_NT_EXPORT_NAME</span>, <span class="string">&quot;GSS_NT_EXPORT_NAME&quot;</span>),
-        (<span class="ident">GSS_NT_COMPOSITE_EXPORT</span>, <span class="string">&quot;GSS_NT_COMPOSITE_EXPORT&quot;</span>),
-        (<span class="ident">GSS_INQ_SSPI_SESSION_KEY</span>, <span class="string">&quot;GSS_INQ_SSPI_SESSION_KEY&quot;</span>),
-        (<span class="ident">GSS_INQ_NEGOEX_KEY</span>, <span class="string">&quot;GSS_INQ_NEGOEX_KEY&quot;</span>),
-        (<span class="ident">GSS_INQ_NEGOEX_VERIFY_KEY</span>, <span class="string">&quot;GSS_INQ_NEGOEX_VERIFY_KEY&quot;</span>),
-        (<span class="ident">GSS_MA_NEGOEX_AND_SPNEGO</span>, <span class="string">&quot;GSS_MA_NEGOEX_AND_SPNEGO&quot;</span>),
-        (<span class="ident">GSS_SEC_CONTEXT_SASL_SSF</span>, <span class="string">&quot;GSS_SEC_CONTEXT_SASL_SSF&quot;</span>),
-        (<span class="ident">GSS_MECH_KRB5</span>, <span class="string">&quot;GSS_MECH_KRB5&quot;</span>),
-        (<span class="ident">GSS_MECH_IAKERB</span>, <span class="string">&quot;GSS_MECH_IAKERB&quot;</span>),
-        (<span class="ident">GSS_NT_KRB5_PRINCIPAL</span>, <span class="string">&quot;GSS_KRB5_NT_PRINCIPAL&quot;</span>),
-        (<span class="ident">GSS_KRB5_CRED_NO_CI_FLAGS_X</span>, <span class="string">&quot;GSS_KRB5_CRED_NO_CI_FLAGS_X&quot;</span>),
-        (<span class="ident">GSS_KRB5_GET_CRED_IMPERSONATOR</span>, <span class="string">&quot;GSS_KRB5_GET_CRED_IMPERSONATOR&quot;</span>)
-    ].<span class="ident">iter</span>().<span class="ident">copied</span>());
+    <span class="kw">static</span> <span class="kw-2">ref</span> <span class="ident">OIDS</span>: <span class="ident">HashMap</span><span class="op">&lt;</span><span class="ident">Oid</span>, <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">HashMap</span>::<span class="ident">from_iter</span>(
+        [
+            (<span class="ident">GSS_NT_USER_NAME</span>, <span class="string">&quot;GSS_NT_USER_NAME&quot;</span>),
+            (<span class="ident">GSS_NT_MACHINE_UID_NAME</span>, <span class="string">&quot;GSS_NT_MACHINE_UID_NAME&quot;</span>),
+            (<span class="ident">GSS_NT_STRING_UID_NAME</span>, <span class="string">&quot;GSS_NT_STRING_UID_NAME&quot;</span>),
+            (<span class="ident">GSS_NT_HOSTBASED_SERVICE</span>, <span class="string">&quot;GSS_NT_HOSTBASED_SERVICE&quot;</span>),
+            (<span class="ident">GSS_NT_ANONYMOUS</span>, <span class="string">&quot;GSS_NT_ANONYMOUS&quot;</span>),
+            (<span class="ident">GSS_NT_EXPORT_NAME</span>, <span class="string">&quot;GSS_NT_EXPORT_NAME&quot;</span>),
+            (<span class="ident">GSS_NT_COMPOSITE_EXPORT</span>, <span class="string">&quot;GSS_NT_COMPOSITE_EXPORT&quot;</span>),
+            (<span class="ident">GSS_INQ_SSPI_SESSION_KEY</span>, <span class="string">&quot;GSS_INQ_SSPI_SESSION_KEY&quot;</span>),
+            (<span class="ident">GSS_INQ_NEGOEX_KEY</span>, <span class="string">&quot;GSS_INQ_NEGOEX_KEY&quot;</span>),
+            (<span class="ident">GSS_INQ_NEGOEX_VERIFY_KEY</span>, <span class="string">&quot;GSS_INQ_NEGOEX_VERIFY_KEY&quot;</span>),
+            (<span class="ident">GSS_MA_NEGOEX_AND_SPNEGO</span>, <span class="string">&quot;GSS_MA_NEGOEX_AND_SPNEGO&quot;</span>),
+            (<span class="ident">GSS_SEC_CONTEXT_SASL_SSF</span>, <span class="string">&quot;GSS_SEC_CONTEXT_SASL_SSF&quot;</span>),
+            (<span class="ident">GSS_MECH_KRB5</span>, <span class="string">&quot;GSS_MECH_KRB5&quot;</span>),
+            (<span class="ident">GSS_MECH_IAKERB</span>, <span class="string">&quot;GSS_MECH_IAKERB&quot;</span>),
+            (<span class="ident">GSS_NT_KRB5_PRINCIPAL</span>, <span class="string">&quot;GSS_KRB5_NT_PRINCIPAL&quot;</span>),
+            (<span class="ident">GSS_KRB5_CRED_NO_CI_FLAGS_X</span>, <span class="string">&quot;GSS_KRB5_CRED_NO_CI_FLAGS_X&quot;</span>),
+            (
+                <span class="ident">GSS_KRB5_GET_CRED_IMPERSONATOR</span>,
+                <span class="string">&quot;GSS_KRB5_GET_CRED_IMPERSONATOR&quot;</span>
+            )
+        ]
+        .<span class="ident">iter</span>()
+        .<span class="ident">copied</span>()
+    );
 }
 
 <span class="comment">/* this mirrors the C struct, but has a proper const pointer AS
@@ -470,17 +488,16 @@ if that happens I guess file a bug.
 
 <span class="kw">impl</span> <span class="ident">fmt</span>::<span class="ident">Debug</span> <span class="kw">for</span> <span class="ident">Oid</span> {
     <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">fmt</span>::<span class="ident">Formatter</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">fmt</span>::<span class="ident">Error</span><span class="op">&gt;</span> {
-        <span class="macro">write</span><span class="macro">!</span>(<span class="ident">f</span>, <span class="string">&quot;{:?}&quot;</span>, <span class="kw-2">&amp;</span><span class="kw-2">*</span><span class="self">self</span> <span class="kw">as</span> <span class="kw-2">&amp;</span>[<span class="ident">u8</span>])
+        <span class="kw">match</span> <span class="ident">OIDS</span>.<span class="ident">get</span>(<span class="self">self</span>) {
+            <span class="prelude-val">None</span> <span class="op">=</span><span class="op">&gt;</span> <span class="macro">write</span><span class="macro">!</span>(<span class="ident">f</span>, <span class="string">&quot;{:?}&quot;</span>, <span class="kw-2">&amp;</span><span class="kw-2">*</span><span class="self">self</span> <span class="kw">as</span> <span class="kw-2">&amp;</span>[<span class="ident">u8</span>]),
+            <span class="prelude-val">Some</span>(<span class="ident">name</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="macro">write</span><span class="macro">!</span>(<span class="ident">f</span>, <span class="string">&quot;{}&quot;</span>, <span class="ident">name</span>),
+        }
     }
 }
 
 <span class="kw">impl</span> <span class="ident">fmt</span>::<span class="ident">Display</span> <span class="kw">for</span> <span class="ident">Oid</span> {
     <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">fmt</span>::<span class="ident">Formatter</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">fmt</span>::<span class="ident">Error</span><span class="op">&gt;</span> {
-        <span class="kw">match</span> <span class="ident">OIDS</span>.<span class="ident">get</span>(<span class="self">self</span>) {
-            <span class="prelude-val">None</span> <span class="op">=</span><span class="op">&gt;</span> <span class="macro">write</span><span class="macro">!</span>(<span class="ident">f</span>, <span class="string">&quot;unknown: {:?}&quot;</span>, <span class="kw-2">&amp;</span><span class="kw-2">*</span><span class="self">self</span> <span class="kw">as</span> <span class="kw-2">&amp;</span>[<span class="ident">u8</span>]),
-            <span class="prelude-val">Some</span>(<span class="ident">name</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="macro">write</span><span class="macro">!</span>(<span class="ident">f</span>, <span class="string">&quot;{}&quot;</span>, <span class="ident">name</span>),
-        }
-
+        <span class="ident">fmt</span>::<span class="ident">Debug</span>::<span class="ident">fmt</span>(<span class="self">self</span>, <span class="ident">f</span>)
     }
 }
 
@@ -494,7 +511,7 @@ if that happens I guess file a bug.
 
 <span class="kw">impl</span> <span class="ident">PartialEq</span> <span class="kw">for</span> <span class="ident">Oid</span> {
     <span class="kw">fn</span> <span class="ident">eq</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">other</span>: <span class="kw-2">&amp;</span><span class="ident">Oid</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">bool</span> {
-        <span class="kw-2">&amp;</span><span class="kw-2">*</span><span class="self">self</span> <span class="op">=</span><span class="op">=</span> <span class="kw-2">&amp;</span><span class="kw-2">*</span><span class="ident">other</span>
+        <span class="kw-2">&amp;</span><span class="kw-2">*</span><span class="self">self</span> <span class="kw">as</span> <span class="kw-2">&amp;</span>[<span class="ident">u8</span>] <span class="op">=</span><span class="op">=</span> <span class="kw-2">&amp;</span><span class="kw-2">*</span><span class="ident">other</span> <span class="kw">as</span> <span class="kw-2">&amp;</span>[<span class="ident">u8</span>]
     }
 }
 
@@ -532,8 +549,8 @@ if that happens I guess file a bug.
 
 <span class="kw">impl</span> <span class="ident">Oid</span> {
     <span class="attribute">#[<span class="ident">allow</span>(<span class="ident">dead_code</span>)]</span>
-    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">from_c</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span>(<span class="ident">ptr</span>: <span class="ident">gss_OID</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">Oid</span><span class="op">&gt;</span> {
-        <span class="ident">mem</span>::<span class="ident">transmute</span>::<span class="op">&lt;</span><span class="ident">gss_OID</span>, <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">Oid</span><span class="op">&gt;</span>(<span class="ident">ptr</span>).<span class="ident">as_ref</span>()
+    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">from_c</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span>(<span class="ident">ptr</span>: <span class="ident">gss_OID</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">Oid</span> {
+        <span class="kw-2">&amp;</span><span class="kw-2">*</span><span class="ident">mem</span>::<span class="ident">transmute</span>::<span class="op">&lt;</span><span class="ident">gss_OID</span>, <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">Oid</span><span class="op">&gt;</span>(<span class="ident">ptr</span>)
     }
 
     <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">to_c</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">gss_OID</span> {
@@ -624,7 +641,7 @@ if that happens I guess file a bug.
     <span class="kw">fn</span> <span class="ident">into_iter</span>(<span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span>::<span class="ident">IntoIter</span> {
         <span class="ident">OidSetIter</span> {
             <span class="ident">current</span>: <span class="number">0</span>,
-            <span class="ident">set</span>: <span class="self">self</span>
+            <span class="ident">set</span>: <span class="self">self</span>,
         }
     }
 }
@@ -644,7 +661,10 @@ if that happens I guess file a bug.
         <span class="kw">if</span> <span class="ident">major</span> <span class="op">=</span><span class="op">=</span> <span class="ident">GSS_S_COMPLETE</span> {
             <span class="prelude-val">Ok</span>(<span class="ident">OidSet</span>(<span class="ident">out</span>))
         } <span class="kw">else</span> {
-            <span class="prelude-val">Err</span>(<span class="ident">Error</span> { <span class="ident">major</span>, <span class="ident">minor</span> })
+            <span class="prelude-val">Err</span>(<span class="ident">Error</span> {
+                <span class="ident">major</span>: <span class="kw">unsafe</span> { <span class="ident">MajorFlags</span>::<span class="ident">from_bits_unchecked</span>(<span class="ident">major</span>) },
+                <span class="ident">minor</span>
+            })
         }
     }
 
@@ -656,13 +676,13 @@ if that happens I guess file a bug.
     <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">to_c</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">gss_OID_set</span> {
         <span class="self">self</span>.<span class="number">0</span>
     }
-    
+
     <span class="doccomment">/// How many oids are in this set</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">len</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">usize</span> {
         <span class="kw">unsafe</span> { (<span class="kw-2">*</span><span class="self">self</span>.<span class="number">0</span>).<span class="ident">count</span> <span class="kw">as</span> <span class="ident">usize</span> }
     }
-    
-    <span class="doccomment">/// Add an OID to the set. </span>
+
+    <span class="doccomment">/// Add an OID to the set.</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">add</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">id</span>: <span class="kw-2">&amp;</span><span class="ident">Oid</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">Error</span><span class="op">&gt;</span> {
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">minor</span> <span class="op">=</span> <span class="ident">GSS_S_COMPLETE</span>;
         <span class="kw">let</span> <span class="ident">major</span> <span class="op">=</span> <span class="kw">unsafe</span> {
@@ -675,11 +695,14 @@ if that happens I guess file a bug.
         <span class="kw">if</span> <span class="ident">major</span> <span class="op">=</span><span class="op">=</span> <span class="ident">GSS_S_COMPLETE</span> {
             <span class="prelude-val">Ok</span>(())
         } <span class="kw">else</span> {
-            <span class="prelude-val">Err</span>(<span class="ident">Error</span> { <span class="ident">major</span>, <span class="ident">minor</span> })
+            <span class="prelude-val">Err</span>(<span class="ident">Error</span> {
+                <span class="ident">major</span>: <span class="kw">unsafe</span> { <span class="ident">MajorFlags</span>::<span class="ident">from_bits_unchecked</span>(<span class="ident">major</span>) },
+                <span class="ident">minor</span>
+            })
         }
     }
 
-    <span class="doccomment">/// Ask gssapi whether it think the specified oid is in the</span>
+    <span class="doccomment">/// Ask gssapi whether it thinks the specified oid is in the</span>
     <span class="doccomment">/// specified set.</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">contains</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">id</span>: <span class="kw-2">&amp;</span><span class="ident">Oid</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">bool</span>, <span class="ident">Error</span><span class="op">&gt;</span> {
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">minor</span> <span class="op">=</span> <span class="ident">GSS_S_COMPLETE</span>;
@@ -695,7 +718,10 @@ if that happens I guess file a bug.
         <span class="kw">if</span> <span class="ident">major</span> <span class="op">=</span><span class="op">=</span> <span class="ident">GSS_S_COMPLETE</span> {
             <span class="prelude-val">Ok</span>(<span class="kw">if</span> <span class="ident">present</span> <span class="op">!</span><span class="op">=</span> <span class="number">0</span> { <span class="bool-val">true</span> } <span class="kw">else</span> { <span class="bool-val">false</span> })
         } <span class="kw">else</span> {
-            <span class="prelude-val">Err</span>(<span class="ident">Error</span> { <span class="ident">major</span>, <span class="ident">minor</span> })
+            <span class="prelude-val">Err</span>(<span class="ident">Error</span> {
+                <span class="ident">major</span>: <span class="kw">unsafe</span> { <span class="ident">MajorFlags</span>::<span class="ident">from_bits_unchecked</span>(<span class="ident">major</span>) },
+                <span class="ident">minor</span>
+            })
         }
     }
 }

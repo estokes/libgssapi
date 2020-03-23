@@ -1,1 +1,1 @@
-initSidebarItems({"struct":[["Error",""]]});
+initSidebarItems({"struct":[["Error",""],["MajorFlags",""]]});

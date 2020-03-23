@@ -244,13 +244,15 @@ unsafe impl Sync for OidSet {}
 
 impl Drop for OidSet {
     fn drop(&mut self) {
-        let mut _minor = GSS_S_COMPLETE;
-        let _major = unsafe {
-            gss_release_oid_set(
-                &mut _minor as *mut OM_uint32,
-                &mut self.0 as *mut gss_OID_set,
-            )
-        };
+        if !self.0.is_null() {
+            let mut _minor = GSS_S_COMPLETE;
+            let _major = unsafe {
+                gss_release_oid_set(
+                    &mut _minor as *mut OM_uint32,
+                    &mut self.0 as *mut gss_OID_set,
+                )
+            };
+        }
         // CR estokes: What to do on error?
     }
 }
@@ -279,6 +281,12 @@ impl<'a> IntoIterator for &'a OidSet {
             current: 0,
             set: self,
         }
+    }
+}
+
+impl fmt::Debug for OidSet {
+    fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
+        fmt::Debug::fmt(&self.into_iter().collect::<Vec<_>>(), f)
     }
 }
 

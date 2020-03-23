@@ -73,7 +73,7 @@ use libgssapi::{
     name::Name,
     credential::{Cred, CredUsage},
     error::Error,
-    context::{CtxFlags, CtxInfo, ClientCtx, ServerCtx, SecurityContext},
+    context::{CtxFlags, ClientCtx, ServerCtx, SecurityContext},
     util::Buf,
     oid::{OidSet, GSS_NT_HOSTBASED_SERVICE, GSS_MECH_KRB5},
 };
@@ -90,7 +90,7 @@ fn setup_server_ctx(
     let server_cred = Cred::acquire(
         Some(&cname), None, CredUsage::Accept, Some(desired_mechs)
     )?;
-    println!("acquired server credentials");
+    println!("acquired server credentials: {:#?}", server_cred.info()?);
     Ok((ServerCtx::new(server_cred), cname))
 }
 
@@ -101,7 +101,7 @@ fn setup_client_ctx(
     let client_cred = Cred::acquire(
         None, None, CredUsage::Initiate, Some(&desired_mechs)
     )?;
-    println!("acquired default client credentials");
+    println!("acquired default client credentials: {:#?}", client_cred.info()?);
     Ok(ClientCtx::new(
         client_cred, service_name, CtxFlags::GSS_C_MUTUAL_FLAG, Some(&GSS_MECH_KRB5)
     ))
