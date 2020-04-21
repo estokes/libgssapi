@@ -66,6 +66,11 @@ gssapi minor error A later token has already been processed
 
 Yep, that's pretty helpful. Thanks gssapi!
 
+When using MIT Kerberos you can get some better info by setting
+KRB5_TRACE=/dev/stderr (or whatever file you want the trace written
+to). I'm sure a similar thing exists for Heimdal, but I don't know what
+it is.
+
 */
 
 use std::env::args;

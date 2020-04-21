@@ -1,15 +1,12 @@
 use bytes;
 use libgssapi_sys::{
     gss_buffer_desc, gss_buffer_desc_struct, gss_buffer_t, gss_iov_buffer_desc,
-    gss_iov_buffer_desc_struct, gss_release_buffer, size_t, OM_uint32, GSS_S_COMPLETE,
-};
-pub use libgssapi_sys::{
-    GSS_IOV_BUFFER_FLAG_ALLOCATE, GSS_IOV_BUFFER_FLAG_ALLOCATED,
-    GSS_IOV_BUFFER_FLAG_MASK, GSS_IOV_BUFFER_TYPE_DATA, GSS_IOV_BUFFER_TYPE_EMPTY,
-    GSS_IOV_BUFFER_TYPE_HEADER, GSS_IOV_BUFFER_TYPE_MECH_PARAMS,
-    GSS_IOV_BUFFER_TYPE_MIC_TOKEN, GSS_IOV_BUFFER_TYPE_PADDING,
-    GSS_IOV_BUFFER_TYPE_SIGN_ONLY, GSS_IOV_BUFFER_TYPE_STREAM,
-    GSS_IOV_BUFFER_TYPE_TRAILER,
+    gss_release_buffer, size_t, OM_uint32, GSS_IOV_BUFFER_FLAG_ALLOCATE,
+    GSS_IOV_BUFFER_FLAG_ALLOCATED, GSS_IOV_BUFFER_FLAG_MASK, GSS_IOV_BUFFER_TYPE_DATA,
+    GSS_IOV_BUFFER_TYPE_EMPTY, GSS_IOV_BUFFER_TYPE_HEADER,
+    GSS_IOV_BUFFER_TYPE_MECH_PARAMS, GSS_IOV_BUFFER_TYPE_MIC_TOKEN,
+    GSS_IOV_BUFFER_TYPE_PADDING, GSS_IOV_BUFFER_TYPE_SIGN_ONLY,
+    GSS_IOV_BUFFER_TYPE_STREAM, GSS_IOV_BUFFER_TYPE_TRAILER, GSS_S_COMPLETE,
 };
 use std::{
     ffi,
@@ -51,6 +48,50 @@ impl<'a> From<&'a [u8]> for BufRef<'a> {
 impl<'a> BufRef<'a> {
     pub(crate) unsafe fn to_c(&mut self) -> gss_buffer_t {
         &mut self.0 as gss_buffer_t
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+pub enum GssIovType {
+    Empty,
+    Data,
+    Header,
+    MechParams,
+    Trailer,
+    Padding,
+    Stream,
+    SignOnly,
+    MicToken,
+}
+
+impl GssIovType {
+    fn to_c(&self) -> u32 {
+        match self {
+            GssIovType::Empty => GSS_IOV_BUFFER_TYPE_EMPTY,
+            GssIovType::Data => GSS_IOV_BUFFER_TYPE_DATA,
+            GssIovType::Header => GSS_IOV_BUFFER_TYPE_HEADER,
+            GssIovType::MechParams => GSS_IOV_BUFFER_TYPE_MECH_PARAMS,
+            GssIovType::Trailer => GSS_IOV_BUFFER_TYPE_TRAILER,
+            GssIovType::Padding => GSS_IOV_BUFFER_TYPE_PADDING,
+            GssIovType::Stream => GSS_IOV_BUFFER_TYPE_STREAM,
+            GssIovType::SignOnly => GSS_IOV_BUFFER_TYPE_SIGN_ONLY,
+            GssIovType::MicToken => GSS_IOV_BUFFER_TYPE_MIC_TOKEN,
+        }
+    }
+
+    fn from_c(t: u32) -> Option<Self> {
+        match t & !GSS_IOV_BUFFER_FLAG_MASK {
+            GSS_IOV_BUFFER_TYPE_EMPTY => Some(GssIovType::Empty),
+            GSS_IOV_BUFFER_TYPE_DATA => Some(GssIovType::Data),
+            GSS_IOV_BUFFER_TYPE_HEADER => Some(GssIovType::Header),
+            GSS_IOV_BUFFER_TYPE_MECH_PARAMS => Some(GssIovType::MechParams),
+            GSS_IOV_BUFFER_TYPE_TRAILER => Some(GssIovType::Trailer),
+            GSS_IOV_BUFFER_TYPE_PADDING => Some(GssIovType::Padding),
+            GSS_IOV_BUFFER_TYPE_STREAM => Some(GssIovType::Stream),
+            GSS_IOV_BUFFER_TYPE_SIGN_ONLY => Some(GssIovType::SignOnly),
+            GSS_IOV_BUFFER_TYPE_MIC_TOKEN => Some(GssIovType::MicToken),
+            _ => None,
+        }
     }
 }
 
@@ -117,10 +158,23 @@ impl<'a> GssIov<'a, GssIovReal> {
 }
 
 impl<'a, K> GssIov<'a, K> {
-    /// Create a fake Iov for calls to wrap_iov_length
-    pub fn fake() -> GssIov<'a, GssIovFake> {
+    /// Create a new real Iov for calls to wrap_iov.
+    pub fn new(typ: GssIovType, data: &'a mut [u8]) -> GssIov<'a, GssIovReal> {
         let gss_iov = gss_iov_buffer_desc {
-            type_: 0,
+            type_: typ.to_c(),
+            buffer: gss_buffer_desc_struct {
+                length: data.len() as size_t,
+                value: data.as_mut_ptr().cast(),
+            },
+        };
+        GssIov(gss_iov, PhantomData)
+    }
+
+    /// Create a new real Iov that will have necessary storage
+    /// allocated as needed by gssapi.
+    pub fn new_alloc(typ: GssIovType) -> GssIov<'a, GssIovReal> {
+        let gss_iov = gss_iov_buffer_desc {
+            type_: typ.to_c() | GSS_IOV_BUFFER_FLAG_ALLOCATE,
             buffer: gss_buffer_desc_struct {
                 length: 0,
                 value: ptr::null_mut(),
@@ -129,16 +183,20 @@ impl<'a, K> GssIov<'a, K> {
         GssIov(gss_iov, PhantomData)
     }
 
-    pub fn typ(&self) -> &u32 {
-        &self.0.type_
+    /// Create a fake Iov for calls to wrap_iov_length
+    pub fn new_fake(typ: GssIovType) -> GssIov<'a, GssIovFake> {
+        let gss_iov = gss_iov_buffer_desc {
+            type_: typ.to_c(),
+            buffer: gss_buffer_desc_struct {
+                length: 0,
+                value: ptr::null_mut(),
+            },
+        };
+        GssIov(gss_iov, PhantomData)
     }
 
-    pub fn typ_mut(&mut self) -> &mut u32 {
-        &mut self.0.type_
-    }
-
-    pub fn len(&self) -> usize {
-        self.0.buffer.length as usize
+    pub fn typ(&self) -> Option<GssIovType> {
+        GssIovType::from_c(self.0.type_)
     }
 }
 
