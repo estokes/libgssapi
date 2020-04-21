@@ -96,7 +96,7 @@ unsafe fn wrap_iov(
     }
 }
 
-unsafe fn wrap_iov_len(
+unsafe fn wrap_iov_length(
     ctx: gss_ctx_id_t,
     encrypt: bool,
     msg: &mut [GssIov<GssIovFake>],
@@ -137,6 +137,31 @@ unsafe fn unwrap(ctx: gss_ctx_id_t, msg: &[u8]) -> Result<Buf, Error> {
     );
     if major == GSS_S_COMPLETE {
         Ok(out)
+    } else {
+        Err(Error {
+            major: MajorFlags::from_bits_unchecked(major),
+            minor,
+        })
+    }
+}
+
+unsafe fn unwrap_iov(
+    ctx: gss_ctx_id_t,
+    msg: &mut [GssIov<GssIovReal>],
+) -> Result<(), Error> {
+    let mut minor = GSS_S_COMPLETE;
+    let major = gss_unwrap_iov(
+        &mut minor as *mut OM_uint32,
+        ctx,
+        ptr::null_mut(),
+        ptr::null_mut(),
+        mem::transmute::<*mut GssIov<GssIovReal>, *mut gss_iov_buffer_desc>(
+            msg.as_mut_ptr(),
+        ),
+        msg.len() as i32,
+    );
+    if major == GSS_S_COMPLETE {
+        Ok(())
     } else {
         Err(Error {
             major: MajorFlags::from_bits_unchecked(major),
@@ -339,9 +364,86 @@ pub trait SecurityContext {
     /// integrity.
     fn wrap(&self, encrypt: bool, msg: &[u8]) -> Result<Buf, Error>;
 
+    /** From the MIT kerberos documentation,
+
+     * Sign and optionally encrypt a sequence of buffers. The buffers
+     * shall be ordered HEADER | DATA | PADDING | TRAILER. Suitable
+     * space for the header, padding and trailer should be provided
+     * by calling gss_wrap_iov_length(), or the ALLOCATE flag should
+     * be set on those buffers.
+
+    rust note: if you don't want to use the ALLOCATE flag then call
+    `wrap_iov_length` with a set of `GssIov<GssIovFake>`
+    objects. These don't contain any allocated memory, and can't be
+    dererenced or used, but the C library will set their length. You
+    then need to use those lengths to allocate the correct amount of
+    memory for the real wrap_iov call.
+
+     * Encryption is in-place. SIGN_ONLY buffers are untouched. Only
+     * a single PADDING buffer should be provided. The order of the
+     * buffers in memory does not matter. Buffers in the IOV should
+     * be arranged in the order above, and in the case of multiple
+     * DATA buffers the sender and receiver should agree on the
+     * order.
+     *
+     * With GSS_C_DCE_STYLE it is acceptable to not provide PADDING
+     * and TRAILER, but the caller must guarantee the plaintext data
+     * being encrypted is correctly padded, otherwise an error will
+     * be returned.
+     *
+     * While applications that have knowledge of the underlying
+     * cryptosystem may request a specific configuration of data
+     * buffers, the only generally supported configurations are:
+     *
+     *  HEADER | DATA | PADDING | TRAILER
+     *
+     * which will emit GSS_Wrap() compatible tokens, and:
+     *
+     *  HEADER | SIGN_ONLY | DATA | PADDING | TRAILER
+     *
+     * for AEAD.
+     *
+     * The typical (special cased) usage for DCE is as follows:
+     *
+     *  SIGN_ONLY_1 | DATA | SIGN_ONLY_2 | HEADER
+     **/
+    fn wrap_iov(
+        &self,
+        encrypt: bool,
+        msg: &mut [GssIov<GssIovReal>],
+    ) -> Result<(), Error>;
+
+    /// This will set the required length of all the buffers except
+    /// the data buffer, which must be provided as it will be to
+    /// wrap_iov. The value of the encrypt flag must match what you
+    /// pass to `wrap_iov`.
+    fn wrap_iov_length(
+        &self,
+        encrypt: bool,
+        msg: &mut [GssIov<GssIovFake>],
+    ) -> Result<(), Error>;
+
     /// Unwrap a wrapped message, checking it's integrity and
     /// decrypting it if necessary.
     fn unwrap(&self, msg: &[u8]) -> Result<Buf, Error>;
+
+    /** From the MIT Kerberos documentation,
+
+    gss_unwrap_iov may be called with an IOV list just like one which
+    would be provided to gss_wrap_iov. DATA buffers will be decrypted
+    in-place if they were encrypted, and SIGN_ONLY buffers will not be
+    modified.
+
+    Alternatively, gss_unwrap_iov may be called with a single STREAM
+    buffer, zero or more SIGN_ONLY buffers, and a single DATA
+    buffer. The STREAM buffer is interpreted as a complete wrap
+    token. The STREAM buffer will be modified in-place to decrypt its
+    contents. The DATA buffer will be initialized to point to the
+    decrypted data within the STREAM buffer, unless it has the
+    GSS_C_BUFFER_FLAG_ALLOCATE flag set, in which case it will be
+    initialized with a copy of the decrypted data.
+    */
+    fn unwrap_iov(&self, msg: &mut [GssIov<GssIovReal>]) -> Result<(), Error>;
 
     /// Get all information about a security context in one call
     fn info(&self) -> Result<CtxInfo, Error>;
@@ -490,9 +592,35 @@ impl SecurityContext for ServerCtx {
         unsafe { wrap(inner.ctx, encrypt, msg) }
     }
 
+    fn wrap_iov(
+        &self,
+        encrypt: bool,
+        msg: &mut [GssIov<GssIovReal>],
+    ) -> Result<(), Error> {
+        let inner = self.0.lock();
+        unsafe { wrap_iov(inner.ctx, encrypt, msg) }
+    }
+
+    fn wrap_iov_length(
+        &self,
+        encrypt: bool,
+        msg: &mut [GssIov<GssIovFake>],
+    ) -> Result<(), Error> {
+        let inner = self.0.lock();
+        unsafe { wrap_iov_length(inner.ctx, encrypt, msg) }
+    }
+
     fn unwrap(&self, msg: &[u8]) -> Result<Buf, Error> {
         let inner = self.0.lock();
         unsafe { unwrap(inner.ctx, msg) }
+    }
+
+    fn unwrap_iov(
+        &self,
+        msg: &mut [GssIov<GssIovReal>],
+    ) -> Result<(), Error> {
+        let inner = self.0.lock();
+        unsafe { unwrap_iov(inner.ctx, msg) }
     }
 
     fn info(&self) -> Result<CtxInfo, Error> {
@@ -660,9 +788,35 @@ impl SecurityContext for ClientCtx {
         unsafe { wrap(inner.ctx, encrypt, msg) }
     }
 
+    fn wrap_iov(
+        &self,
+        encrypt: bool,
+        msg: &mut [GssIov<GssIovReal>],
+    ) -> Result<(), Error> {
+        let inner = self.0.lock();
+        unsafe { wrap_iov(inner.ctx, encrypt, msg) }
+    }
+
+    fn wrap_iov_length(
+        &self,
+        encrypt: bool,
+        msg: &mut [GssIov<GssIovFake>],
+    ) -> Result<(), Error> {
+        let inner = self.0.lock();
+        unsafe { wrap_iov_length(inner.ctx, encrypt, msg) }
+    }
+
     fn unwrap(&self, msg: &[u8]) -> Result<Buf, Error> {
         let inner = self.0.lock();
         unsafe { unwrap(inner.ctx, msg) }
+    }
+
+    fn unwrap_iov(
+        &self,
+        msg: &mut [GssIov<GssIovReal>],
+    ) -> Result<(), Error> {
+        let inner = self.0.lock();
+        unsafe { unwrap_iov(inner.ctx, msg) }
     }
 
     fn info(&self) -> Result<CtxInfo, Error> {

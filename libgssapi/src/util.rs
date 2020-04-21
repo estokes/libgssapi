@@ -109,6 +109,8 @@ impl<'a> From<&'a mut [u8]> for GssIov<'a, GssIovReal> {
 }
 
 impl<'a> GssIov<'a, GssIovReal> {
+    /// cast a real iov to a fake one. You need to do this for the
+    /// DATA buffer for the call to `wrap_iov_length`.
     pub fn as_fake(self) -> GssIov<'a, GssIovFake> {
         GssIov(self.0, PhantomData)
     }
