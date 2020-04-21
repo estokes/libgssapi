@@ -198,6 +198,31 @@ impl<'a, K> GssIov<'a, K> {
     pub fn typ(&self) -> Option<GssIovType> {
         GssIovType::from_c(self.0.type_)
     }
+
+    /// In the special case where you unwrap a token using the
+    /// "stream" method, and end up with a pointer into it, you may
+    /// want to know the length of the header, so you can, for
+    /// example, split out just the data and send it somewhere without
+    /// copying it. This function will tell you that length. Don't use
+    /// it otherwise.
+    pub fn header_length(&self, data: &GssIov<'a, GssIovReal>) -> Option<usize> {
+        match GssIovType::from_c(self.0.type_) {
+            Some(GssIovType::Stream) => unsafe {
+                let base = mem::transmute::<*mut ffi::c_void, usize>(self.0.buffer.value);
+                let data = mem::transmute::<*mut ffi::c_void, usize>(data.0.buffer.value);
+                if base > data {
+                    Some(data - base)
+                } else {
+                    Some(base - data)
+                }
+            }
+            _ => None
+        }
+    }
+
+    pub fn len(&self) -> usize {
+        self.0.buffer.length as usize
+    }
 }
 
 /// This represents an owned buffer we got from gssapi, it will be

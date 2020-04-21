@@ -4,13 +4,13 @@
  * wrap_iov, and unwrap_iov to do in place encryption/decryption. */
 
 use std::env::args;
-use bytes::{BytesMut, Bytes, Buf, BufMut};
+use bytes::BytesMut;
 use libgssapi::{
     name::Name,
     credential::{Cred, CredUsage},
     error::Error,
     context::{CtxFlags, ClientCtx, ServerCtx, SecurityContext},
-    util::Buf,
+    util::{Buf, GssIov, GssIovType},
     oid::{OidSet, GSS_NT_HOSTBASED_SERVICE, GSS_MECH_KRB5},
 };
 
@@ -43,6 +43,86 @@ fn setup_client_ctx(
     ))
 }
 
+// This wraps a secret message without asking gssapi to allocate
+// anything ever, it is quite verbose, but potentially a LOT faster
+// than standard wrap
+fn wrap_secret_msg_noalloc(ctx: &ClientCtx) -> Result<BytesMut, Error> {
+    let mut buf = BytesMut::new();
+    let mut data = {
+        buf.extend_from_slice(b"super secret message");
+        buf.split()
+    };
+    // step 1, we need to ask gssapi for the length of all the buffers
+    // that make up a token. We do this by passing "fake" buffers for
+    // the header, paddding, and trailer, along with the real data
+    // buffer.
+    let mut len_iovs = [
+        GssIov::new_fake(GssIovType::Header),
+        GssIov::new(GssIovType::Data, &mut *data).as_fake(),
+        GssIov::new_fake(GssIovType::Padding),
+        GssIov::new_fake(GssIovType::Trailer)
+    ];
+    ctx.wrap_iov_length(true, &mut len_iovs[..])?;
+
+    println!("requested buffer lengths are as follows ...");
+    println!("header:  {}", len_iovs[0].len());
+    println!("data:    {}", len_iovs[1].len());
+    println!("padding: {}", len_iovs[2].len());
+    println!("trailer: {}", len_iovs[3].len());
+
+    // step 2, now that we know what length each buffer must be, we
+    // carve out a chunk of the buffer for each part. the Bytes
+    // library makes this much easier on us.
+    let mut header = {
+        buf.extend((0..len_iovs[0].len()).map(|_| 0));
+        buf.split();
+    };
+    let mut padding = {
+        buf.extend((0..len_iovs[2].len()).map(|_| 0));
+        buf.split();
+    };
+    let mut trailer = {
+        buf.extend((0..len_iovs[3].len()).map(|_| 0));
+        buf.split();
+    };
+    let mut iovs = [
+        GssIov::new(GssIovType::Header, &mut *header),
+        GssIov::new(GssIovType::Data, &mut *data),
+        GssIov::new(GssIovType::Padding, &mut *padding),
+        GssIov::new(GssIovType::Trailer, &mut *trailer),
+    ];
+    // and we can ask gssapi to encrypt/encode the buffers
+    ctx.wrap_iov(true, &mut iovs[..])?;
+
+    // now we would use a function like `write_vectored` to write our
+    // iovecs to a socket. We'll simulate that by assembling it all in
+    // a Bytes that we will then pass to the decrypt function.
+    buf.extend_from_slice(&*header);
+    buf.extend_from_slice(&*data);
+    buf.extend_from_slice(&*padding);
+    buf.extend_from_slice(&*trailer);
+    // of course we would not do the above in a real application
+    // because it copies all the data we just carefully and verbosely
+    // used wrap_iov to avoid copying! But this is an example,
+    Ok(buf.split())
+}
+
+fn unwrap_secret_msg(ctx: &ServerCtx, mut msg: BytesMut) -> Result<BytesMut, Error> {
+    let mut iov = [
+        // this is the entire token
+        GssIov::new(GssIovType::Stream, &mut *msg),
+        // in the end this will point into the above buffer
+        GssIov::new(GssIovType::Data, &mut [])
+    ];
+    ctx.unwrap_iov(&mut iov[..])?;
+    let hdr_len = iov[0].header_length(&iov[1]).unwrap();
+    let data_len = iov[1].len();
+    let data = msg.split_off(hdr_len);
+    msg.clear(); // delete the header
+    data.truncate(data_len); // delete the trailer
+    Ok(data)
+}
+
 fn run(service_name: &[u8]) -> Result<(), Error> {
     let desired_mechs = {
         let mut s = OidSet::new()?;
@@ -64,9 +144,13 @@ fn run(service_name: &[u8]) -> Result<(), Error> {
     println!("security context initialized successfully");
     println!("client ctx info: {:#?}", client_ctx.info()?);
     println!("server ctx info: {:#?}", server_ctx.info()?);
-    let secret_msg = client_ctx.wrap(true, b"super secret message")?;
-    let decoded_msg = server_ctx.unwrap(&*secret_msg)?;
-    println!("the decrypted message is: '{}'", String::from_utf8_lossy(&*decoded_msg));
+    let encrypted = wrap_secret_msg_noalloc(&client_ctx)?;
+    let decrypted = unwrap_secret_msg(&server_ctx, encrypted)?;
+    println!("the secret message is ... Segmentation fault, core dumped");
+    println!(
+        "just kidding, the secret message is \"{}\"",
+        String::from_utf8_lossy(&*decrypted)
+    );
     Ok(())
 }
 
