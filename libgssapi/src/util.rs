@@ -54,16 +54,19 @@ impl<'a> BufRef<'a> {
     }
 }
 
+struct GssIovFake;
+struct GssIovReal;
+
 #[repr(transparent)]
 #[derive(Debug)]
-pub struct GssIov<'a>(gss_iov_buffer_desc, PhantomData<'a>);
+pub struct GssIov<'a, K>(gss_iov_buffer_desc, PhantomData<&'a K>);
 
-unsafe impl<'a> Send for GssIov<'a> {}
-unsafe impl<'a> Sync for GssIov<'a> {}
+unsafe impl<'a, K> Send for GssIov<'a, K> {}
+unsafe impl<'a, K> Sync for GssIov<'a, K> {}
 
-impl<'a> Drop for GssIov<'a> {
+impl<'a> Drop for GssIov<'a, GssIovReal> {
     fn drop(&mut self) {
-        // check if the buffer was allocated at our request by gssapi
+        // check if the buffer was allocated by gssapi
         if self.0.type_ & GSS_IOV_BUFFER_FLAG_MASK & GSS_IOV_BUFFER_FLAG_ALLOCATED > 0 {
             let mut minor = GSS_S_COMPLETE;
             let _major = unsafe {
@@ -71,12 +74,12 @@ impl<'a> Drop for GssIov<'a> {
                     &mut minor as *mut OM_uint32,
                     &mut self.0.buffer as gss_buffer_t
                 )
-            }
+            };
         }
     }
 }
 
-impl<'a> Deref for GssIov<'a> {
+impl<'a> Deref for GssIov<'a, GssIovReal> {
     type Target = [u8];
 
     fn deref(&self) -> &Self::Target {
@@ -85,14 +88,14 @@ impl<'a> Deref for GssIov<'a> {
     }
 }
 
-impl<'a> DerefMut for GssIov<'a> {
+impl<'a> DerefMut for GssIov<'a, GssIovReal> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         let buf = self.0.buffer;
         unsafe { slice::from_raw_parts_mut(buf.value, buf.length as usize) }
     }
 }
 
-impl<'a> From<&'a mut [u8]> for GssIov<'a> {
+impl<'a> From<&'a mut [u8]> for GssIov<'a, GssIovReal> {
     fn from(s: &mut [u8]) -> Self {
         let gss_iov = gss_iov_buffer_desc {
             type_: 0,
@@ -105,9 +108,29 @@ impl<'a> From<&'a mut [u8]> for GssIov<'a> {
     }
 }
 
-impl<'a> GssIov<'a> {
-    pub typ(&mut self) -> &mut u32 {
+impl<'a, K> GssIov<'a, K> {
+    /// Create a fake Iov for calls to wrap_iov_length
+    pub fake() -> GssIov<'a, GssIovFake> {
+        let gss_iov = gss_iov_buffer_desc {
+            type_: 0,
+            buffer: gss_buffer_desc_struct {
+                length: 0
+                value: ptr::null_mut()
+            }
+        };
+        GssIov(gss_iov, PhantomData)
+    }
+
+    pub typ(&self) -> &u32 {
+        &self.0.type_
+    }
+
+    pub typ_mut(&mut self) -> &mut u32 {
         &mut self.0.type_
+    }
+
+    pub len(&self) -> usize {
+        self.0.buffer.length as usize
     }
 }
 

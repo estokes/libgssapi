@@ -3,16 +3,16 @@ use crate::{
     error::{gss_error, Error, MajorFlags},
     name::Name,
     oid::{Oid, NO_OID},
-    util::{Buf, BufRef},
+    util::{Buf, BufRef, GssIov, GssIovFake, GssIovReal},
 };
 use libgssapi_sys::{
-    gss_OID, gss_accept_sec_context, gss_buffer_desc,
-    gss_channel_bindings_struct, gss_cred_id_struct, gss_cred_id_t, gss_ctx_id_t,
-    gss_delete_sec_context, gss_init_sec_context, gss_inquire_context,
-    gss_name_t, gss_unwrap, gss_wrap, OM_uint32, GSS_C_ANON_FLAG, GSS_C_CONF_FLAG,
-    GSS_C_DELEG_FLAG, GSS_C_DELEG_POLICY_FLAG, GSS_C_INTEG_FLAG, GSS_C_MUTUAL_FLAG,
-    GSS_C_PROT_READY_FLAG, GSS_C_QOP_DEFAULT, GSS_C_REPLAY_FLAG, GSS_C_SEQUENCE_FLAG,
-    GSS_C_TRANS_FLAG, GSS_S_COMPLETE, _GSS_C_INDEFINITE, _GSS_S_CONTINUE_NEEDED,
+    gss_OID, gss_accept_sec_context, gss_buffer_desc, gss_channel_bindings_struct,
+    gss_cred_id_struct, gss_cred_id_t, gss_ctx_id_t, gss_delete_sec_context,
+    gss_init_sec_context, gss_inquire_context, gss_name_t, gss_unwrap, gss_wrap,
+    OM_uint32, GSS_C_ANON_FLAG, GSS_C_CONF_FLAG, GSS_C_DELEG_FLAG,
+    GSS_C_DELEG_POLICY_FLAG, GSS_C_INTEG_FLAG, GSS_C_MUTUAL_FLAG, GSS_C_PROT_READY_FLAG,
+    GSS_C_QOP_DEFAULT, GSS_C_REPLAY_FLAG, GSS_C_SEQUENCE_FLAG, GSS_C_TRANS_FLAG,
+    GSS_S_COMPLETE, _GSS_C_INDEFINITE, _GSS_S_CONTINUE_NEEDED,
 };
 use parking_lot::Mutex;
 use std::{ptr, sync::Arc, time::Duration};
@@ -63,6 +63,33 @@ unsafe fn wrap(ctx: gss_ctx_id_t, encrypt: bool, msg: &[u8]) -> Result<Buf, Erro
     } else {
         Err(Error {
             major: MajorFlags::from_bits_unchecked(major),
+            minor,
+        })
+    }
+}
+
+unsafe fn wrap_iov(
+    ctx: gss_ctx_id_t,
+    encrypt: bool,
+    msg: &mut [GssIov<GssIovReal>],
+) -> Result<(), Error> {
+    let mut minor = GSS_S_COMPLETE;
+    let major = gss_wrap_iov(
+        &mut minor as *mut OM_uint32,
+        ctx,
+        if encrypt { 1 } else { 0 },
+        GSS_C_QOP_DEFAULT,
+        ptr::null_mut(),
+        mem::transmute::<*mut GssIov<GssIovReal>, *mut gss_iov_buffer_desc>(
+            msg.as_mut_ptr()
+        ),
+        msg.len() as size_t
+    );
+    if major == GSS_S_COMPLETE {
+        Ok(())
+    } else {
+        Err(Error {
+            major: MajorFlags::from_bits_unchecked(major),
             minor
         })
     }
@@ -85,7 +112,7 @@ unsafe fn unwrap(ctx: gss_ctx_id_t, msg: &[u8]) -> Result<Buf, Error> {
     } else {
         Err(Error {
             major: MajorFlags::from_bits_unchecked(major),
-            minor
+            minor,
         })
     }
 }
@@ -120,7 +147,7 @@ impl CtxInfoC {
             mechanism: None,
             flags: None,
             local: None,
-            open: None
+            open: None,
         }
     }
 }
@@ -132,11 +159,11 @@ unsafe fn info(ctx: gss_ctx_id_t, mut ifo: CtxInfoC) -> Result<CtxInfoC, Error> 
         ctx,
         match ifo.source_name {
             None => ptr::null_mut::<gss_name_t>(),
-            Some(ref mut n) => n as *mut gss_name_t
+            Some(ref mut n) => n as *mut gss_name_t,
         },
         match ifo.target_name {
             None => ptr::null_mut::<gss_name_t>(),
-            Some(ref mut n) => n as *mut gss_name_t
+            Some(ref mut n) => n as *mut gss_name_t,
         },
         match ifo.lifetime {
             None => ptr::null_mut::<u32>(),
@@ -144,20 +171,20 @@ unsafe fn info(ctx: gss_ctx_id_t, mut ifo: CtxInfoC) -> Result<CtxInfoC, Error> 
         },
         match ifo.mechanism {
             None => ptr::null_mut::<gss_OID>(),
-            Some(ref mut o) => o as *mut gss_OID
+            Some(ref mut o) => o as *mut gss_OID,
         },
         match ifo.flags {
             None => ptr::null_mut::<u32>(),
-            Some(ref mut f) => f as *mut u32
+            Some(ref mut f) => f as *mut u32,
         },
         match ifo.local {
             None => ptr::null_mut::<i32>(),
-            Some(ref mut l) => l as *mut i32
+            Some(ref mut l) => l as *mut i32,
         },
         match ifo.open {
             None => ptr::null_mut::<i32>(),
-            Some(ref mut o) => o as *mut i32
-        }
+            Some(ref mut o) => o as *mut i32,
+        },
     );
     if gss_error(major) > 0 {
         // make sure we free anything that was successfully allocated
@@ -167,22 +194,28 @@ unsafe fn info(ctx: gss_ctx_id_t, mut ifo: CtxInfoC) -> Result<CtxInfoC, Error> 
         if let Some(target_name) = ifo.target_name {
             Name::from_c(target_name);
         }
-        Err(Error { major: MajorFlags::from_bits_unchecked(major), minor })
+        Err(Error {
+            major: MajorFlags::from_bits_unchecked(major),
+            minor,
+        })
     } else {
         Ok(ifo)
     }
 }
 
 unsafe fn full_info(ctx: gss_ctx_id_t) -> Result<CtxInfo, Error> {
-    let c = info(ctx, CtxInfoC {
-        source_name: Some(ptr::null_mut()),
-        target_name: Some(ptr::null_mut()),
-        lifetime: Some(0),
-        mechanism: Some(ptr::null_mut()),
-        flags: Some(0),
-        local: Some(0),
-        open: Some(0)
-    })?;
+    let c = info(
+        ctx,
+        CtxInfoC {
+            source_name: Some(ptr::null_mut()),
+            target_name: Some(ptr::null_mut()),
+            lifetime: Some(0),
+            mechanism: Some(ptr::null_mut()),
+            flags: Some(0),
+            local: Some(0),
+            open: Some(0),
+        },
+    )?;
     Ok(CtxInfo {
         source_name: Name::from_c(c.source_name.unwrap()),
         target_name: Name::from_c(c.target_name.unwrap()),
@@ -190,63 +223,84 @@ unsafe fn full_info(ctx: gss_ctx_id_t) -> Result<CtxInfo, Error> {
         mechanism: Oid::from_c(c.mechanism.unwrap()),
         flags: CtxFlags::from_bits_unchecked(c.flags.unwrap()),
         local: c.local.unwrap() > 0,
-        open: c.open.unwrap() > 0
+        open: c.open.unwrap() > 0,
     })
 }
 
 unsafe fn source_name(ctx: gss_ctx_id_t) -> Result<Name, Error> {
-    let c = info(ctx, CtxInfoC {
-        source_name: Some(ptr::null_mut()),
-        .. CtxInfoC::empty()
-    })?;
+    let c = info(
+        ctx,
+        CtxInfoC {
+            source_name: Some(ptr::null_mut()),
+            ..CtxInfoC::empty()
+        },
+    )?;
     Ok(Name::from_c(c.source_name.unwrap()))
 }
 
 unsafe fn target_name(ctx: gss_ctx_id_t) -> Result<Name, Error> {
-    let c = info(ctx, CtxInfoC {
-        target_name: Some(ptr::null_mut()),
-        .. CtxInfoC::empty()
-    })?;
+    let c = info(
+        ctx,
+        CtxInfoC {
+            target_name: Some(ptr::null_mut()),
+            ..CtxInfoC::empty()
+        },
+    )?;
     Ok(Name::from_c(c.target_name.unwrap()))
 }
 
 unsafe fn lifetime(ctx: gss_ctx_id_t) -> Result<Duration, Error> {
-    let c = info(ctx, CtxInfoC {
-        lifetime: Some(0),
-        .. CtxInfoC::empty()
-    })?;
+    let c = info(
+        ctx,
+        CtxInfoC {
+            lifetime: Some(0),
+            ..CtxInfoC::empty()
+        },
+    )?;
     Ok(Duration::from_secs(c.lifetime.unwrap() as u64))
 }
 
 unsafe fn mechanism(ctx: gss_ctx_id_t) -> Result<&'static Oid, Error> {
-    let c = info(ctx, CtxInfoC {
-        mechanism: Some(ptr::null_mut()),
-        .. CtxInfoC::empty()
-    })?;
+    let c = info(
+        ctx,
+        CtxInfoC {
+            mechanism: Some(ptr::null_mut()),
+            ..CtxInfoC::empty()
+        },
+    )?;
     Ok(Oid::from_c(c.mechanism.unwrap()))
 }
 
 unsafe fn flags(ctx: gss_ctx_id_t) -> Result<CtxFlags, Error> {
-    let c = info(ctx, CtxInfoC {
-        flags: Some(0),
-        .. CtxInfoC::empty()
-    })?;
+    let c = info(
+        ctx,
+        CtxInfoC {
+            flags: Some(0),
+            ..CtxInfoC::empty()
+        },
+    )?;
     Ok(CtxFlags::from_bits_unchecked(c.flags.unwrap()))
 }
 
 unsafe fn local(ctx: gss_ctx_id_t) -> Result<bool, Error> {
-    let c = info(ctx, CtxInfoC {
-        local: Some(0),
-        .. CtxInfoC::empty()
-    })?;
+    let c = info(
+        ctx,
+        CtxInfoC {
+            local: Some(0),
+            ..CtxInfoC::empty()
+        },
+    )?;
     Ok(c.local.unwrap() > 0)
 }
 
 unsafe fn open(ctx: gss_ctx_id_t) -> Result<bool, Error> {
-    let c = info(ctx, CtxInfoC {
-        open: Some(0),
-        .. CtxInfoC::empty()
-    })?;
+    let c = info(
+        ctx,
+        CtxInfoC {
+            open: Some(0),
+            ..CtxInfoC::empty()
+        },
+    )?;
     Ok(c.open.unwrap() > 0)
 }
 
@@ -384,7 +438,7 @@ impl ServerCtx {
         if gss_error(major) > 0 {
             let e = Error {
                 major: unsafe { MajorFlags::from_bits_unchecked(major) },
-                minor
+                minor,
             };
             inner.state = ServerCtxState::Failed(e);
             Err(e)
@@ -554,7 +608,7 @@ impl ClientCtx {
         if gss_error(major) > 0 {
             let e = Error {
                 major: unsafe { MajorFlags::from_bits_unchecked(major) },
-                minor
+                minor,
             };
             inner.state = ClientCtxState::Failed(e);
             Err(e)
