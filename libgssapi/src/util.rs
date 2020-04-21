@@ -1,7 +1,16 @@
+use crate::error::Error;
 use bytes;
 use libgssapi_sys::{
-    gss_buffer_desc, gss_buffer_desc_struct, gss_buffer_t, gss_release_buffer, size_t,
-    OM_uint32, GSS_S_COMPLETE,
+    gss_buffer_desc, gss_buffer_desc_struct, gss_buffer_t, gss_iov_buffer_desc,
+    gss_iov_buffer_desc_struct, gss_release_buffer, size_t, OM_uint32, GSS_S_COMPLETE,
+};
+pub use libgssapi_sys::{
+    GSS_IOV_BUFFER_FLAG_ALLOCATE, GSS_IOV_BUFFER_FLAG_ALLOCATED,
+    GSS_IOV_BUFFER_FLAG_MASK, GSS_IOV_BUFFER_TYPE_DATA, GSS_IOV_BUFFER_TYPE_EMPTY,
+    GSS_IOV_BUFFER_TYPE_HEADER, GSS_IOV_BUFFER_TYPE_MECH_PARAMS,
+    GSS_IOV_BUFFER_TYPE_MIC_TOKEN, GSS_IOV_BUFFER_TYPE_PADDING,
+    GSS_IOV_BUFFER_TYPE_SIGN_ONLY, GSS_IOV_BUFFER_TYPE_STREAM,
+    GSS_IOV_BUFFER_TYPE_TRAILER,
 };
 use std::{
     marker::PhantomData,
@@ -10,6 +19,10 @@ use std::{
     ptr, slice,
 };
 
+// This type is dangerous, because we can't force C not to modify the
+// contents of the pointer, and that could have serious
+// consquences. You must use this type ONLY with gssapi functions that
+// will not modify it.
 #[repr(transparent)]
 #[derive(Debug)]
 pub(crate) struct BufRef<'a>(gss_buffer_desc_struct, PhantomData<&'a [u8]>);
@@ -29,7 +42,7 @@ impl<'a> From<&'a [u8]> for BufRef<'a> {
     fn from(s: &[u8]) -> Self {
         let gss_buf = gss_buffer_desc_struct {
             length: s.len() as size_t,
-            value: unsafe { mem::transmute(s.as_ptr()) }, // CR estokes: bad
+            value: unsafe { mem::transmute::<*const u8, *mut u8>(s.as_ptr()) },
         };
         BufRef(gss_buf, PhantomData)
     }
@@ -38,6 +51,63 @@ impl<'a> From<&'a [u8]> for BufRef<'a> {
 impl<'a> BufRef<'a> {
     pub(crate) unsafe fn to_c(&mut self) -> gss_buffer_t {
         &mut self.0 as gss_buffer_t
+    }
+}
+
+#[repr(transparent)]
+#[derive(Debug)]
+pub struct GssIov<'a>(gss_iov_buffer_desc, PhantomData<'a>);
+
+unsafe impl<'a> Send for GssIov<'a> {}
+unsafe impl<'a> Sync for GssIov<'a> {}
+
+impl<'a> Drop for GssIov<'a> {
+    fn drop(&mut self) {
+        // check if the buffer was allocated at our request by gssapi
+        if self.0.type_ & GSS_IOV_BUFFER_FLAG_MASK & GSS_IOV_BUFFER_FLAG_ALLOCATED > 0 {
+            let mut minor = GSS_S_COMPLETE;
+            let _major = unsafe {
+                gss_release_buffer(
+                    &mut minor as *mut OM_uint32,
+                    &mut self.0.buffer as gss_buffer_t
+                )
+            }
+        }
+    }
+}
+
+impl<'a> Deref for GssIov<'a> {
+    type Target = [u8];
+
+    fn deref(&self) -> &Self::Target {
+        let buf = self.0.buffer;
+        unsafe { slice::from_raw_parts(buf.value.cast(), buf.length as usize) }
+    }
+}
+
+impl<'a> DerefMut for GssIov<'a> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        let buf = self.0.buffer;
+        unsafe { slice::from_raw_parts_mut(buf.value, buf.length as usize) }
+    }
+}
+
+impl<'a> From<&'a mut [u8]> for GssIov<'a> {
+    fn from(s: &mut [u8]) -> Self {
+        let gss_iov = gss_iov_buffer_desc {
+            type_: 0,
+            buffer: gss_buffer_desc_struct {
+                length: s.len() as size_t,
+                value: s.as_mut_ptr(),
+            },
+        };
+        GssIov(gss_iov, PhantomData)
+    }
+}
+
+impl<'a> GssIov<'a> {
+    pub typ(&mut self) -> &mut u32 {
+        &mut self.0.type_
     }
 }
 
@@ -75,7 +145,6 @@ impl Drop for Buf {
                     &mut self.0 as gss_buffer_t,
                 )
             };
-            // CR estokes: What to do if this fails?
         }
     }
 }

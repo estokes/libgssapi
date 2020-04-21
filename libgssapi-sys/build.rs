@@ -46,7 +46,8 @@ fn which() -> Gssapi {
 }
 
 fn main() {
-    match which() {
+    let imp = which();
+    match imp {
         Gssapi::Mit => println!("cargo:rustc-link-lib=gssapi_krb5"),
         Gssapi::Heimdal => println!("cargo:rustc-link-lib=gssapi"),
     }
@@ -54,7 +55,10 @@ fn main() {
         .whitelist_type("(OM_.+|gss_.+)")
         .whitelist_var("_?GSS_.+|gss_.+")
         .whitelist_function("gss_.*")
-        .header("wrapper.h")
+        .header(match imp {
+            Gssapi::Mit => "wrapper_mit.h",
+            Gssapi::Heimdal => "wrapper_heimdal.h",
+        })
         .generate()
         .expect("failed to generate gssapi bindings");
     let out_path = PathBuf::from(env::var("OUT_DIR").unwrap());
