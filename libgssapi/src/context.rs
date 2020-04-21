@@ -3,7 +3,7 @@ use crate::{
     error::{gss_error, Error, MajorFlags},
     name::Name,
     oid::{Oid, NO_OID},
-    util::{Buf, BufRef, GssIov, GssIovFake, GssIovReal},
+    util::{Buf, BufRef, GssIov, GssIovFake},
 };
 use libgssapi_sys::{
     gss_OID, gss_accept_sec_context, gss_buffer_desc, gss_channel_bindings_struct,
@@ -72,7 +72,7 @@ unsafe fn wrap(ctx: gss_ctx_id_t, encrypt: bool, msg: &[u8]) -> Result<Buf, Erro
 unsafe fn wrap_iov(
     ctx: gss_ctx_id_t,
     encrypt: bool,
-    msg: &mut [GssIov<GssIovReal>],
+    msg: &mut [GssIov],
 ) -> Result<(), Error> {
     let mut minor = GSS_S_COMPLETE;
     let major = gss_wrap_iov(
@@ -81,9 +81,7 @@ unsafe fn wrap_iov(
         if encrypt { 1 } else { 0 },
         GSS_C_QOP_DEFAULT,
         ptr::null_mut(),
-        mem::transmute::<*mut GssIov<GssIovReal>, *mut gss_iov_buffer_desc>(
-            msg.as_mut_ptr(),
-        ),
+        mem::transmute::<*mut GssIov, *mut gss_iov_buffer_desc>(msg.as_mut_ptr()),
         msg.len() as i32,
     );
     if major == GSS_S_COMPLETE {
@@ -99,7 +97,7 @@ unsafe fn wrap_iov(
 unsafe fn wrap_iov_length(
     ctx: gss_ctx_id_t,
     encrypt: bool,
-    msg: &mut [GssIov<GssIovFake>],
+    msg: &mut [GssIovFake],
 ) -> Result<(), Error> {
     let mut minor = GSS_S_COMPLETE;
     let major = gss_wrap_iov_length(
@@ -108,9 +106,7 @@ unsafe fn wrap_iov_length(
         if encrypt { 1 } else { 0 },
         GSS_C_QOP_DEFAULT,
         ptr::null_mut(),
-        mem::transmute::<*mut GssIov<GssIovFake>, *mut gss_iov_buffer_desc>(
-            msg.as_mut_ptr(),
-        ),
+        mem::transmute::<*mut GssIovFake, *mut gss_iov_buffer_desc>(msg.as_mut_ptr()),
         msg.len() as i32,
     );
     if major == GSS_S_COMPLETE {
@@ -145,19 +141,14 @@ unsafe fn unwrap(ctx: gss_ctx_id_t, msg: &[u8]) -> Result<Buf, Error> {
     }
 }
 
-unsafe fn unwrap_iov(
-    ctx: gss_ctx_id_t,
-    msg: &mut [GssIov<GssIovReal>],
-) -> Result<(), Error> {
+unsafe fn unwrap_iov(ctx: gss_ctx_id_t, msg: &mut [GssIov]) -> Result<(), Error> {
     let mut minor = GSS_S_COMPLETE;
     let major = gss_unwrap_iov(
         &mut minor as *mut OM_uint32,
         ctx,
         ptr::null_mut(),
         ptr::null_mut(),
-        mem::transmute::<*mut GssIov<GssIovReal>, *mut gss_iov_buffer_desc>(
-            msg.as_mut_ptr(),
-        ),
+        mem::transmute::<*mut GssIov, *mut gss_iov_buffer_desc>(msg.as_mut_ptr()),
         msg.len() as i32,
     );
     if major == GSS_S_COMPLETE {
@@ -407,21 +398,14 @@ pub trait SecurityContext {
      *
      *  SIGN_ONLY_1 | DATA | SIGN_ONLY_2 | HEADER
      **/
-    fn wrap_iov(
-        &self,
-        encrypt: bool,
-        msg: &mut [GssIov<GssIovReal>],
-    ) -> Result<(), Error>;
+    fn wrap_iov(&self, encrypt: bool, msg: &mut [GssIov]) -> Result<(), Error>;
 
     /// This will set the required length of all the buffers except
     /// the data buffer, which must be provided as it will be to
     /// wrap_iov. The value of the encrypt flag must match what you
     /// pass to `wrap_iov`.
-    fn wrap_iov_length(
-        &self,
-        encrypt: bool,
-        msg: &mut [GssIov<GssIovFake>],
-    ) -> Result<(), Error>;
+    fn wrap_iov_length(&self, encrypt: bool, msg: &mut [GssIovFake])
+        -> Result<(), Error>;
 
     /// Unwrap a wrapped message, checking it's integrity and
     /// decrypting it if necessary.
@@ -443,7 +427,7 @@ pub trait SecurityContext {
     GSS_C_BUFFER_FLAG_ALLOCATE flag set, in which case it will be
     initialized with a copy of the decrypted data.
     */
-    fn unwrap_iov(&self, msg: &mut [GssIov<GssIovReal>]) -> Result<(), Error>;
+    fn unwrap_iov(&self, msg: &mut [GssIov]) -> Result<(), Error>;
 
     /// Get all information about a security context in one call
     fn info(&self) -> Result<CtxInfo, Error>;
@@ -592,11 +576,7 @@ impl SecurityContext for ServerCtx {
         unsafe { wrap(inner.ctx, encrypt, msg) }
     }
 
-    fn wrap_iov(
-        &self,
-        encrypt: bool,
-        msg: &mut [GssIov<GssIovReal>],
-    ) -> Result<(), Error> {
+    fn wrap_iov(&self, encrypt: bool, msg: &mut [GssIov]) -> Result<(), Error> {
         let inner = self.0.lock();
         unsafe { wrap_iov(inner.ctx, encrypt, msg) }
     }
@@ -604,7 +584,7 @@ impl SecurityContext for ServerCtx {
     fn wrap_iov_length(
         &self,
         encrypt: bool,
-        msg: &mut [GssIov<GssIovFake>],
+        msg: &mut [GssIovFake],
     ) -> Result<(), Error> {
         let inner = self.0.lock();
         unsafe { wrap_iov_length(inner.ctx, encrypt, msg) }
@@ -615,10 +595,7 @@ impl SecurityContext for ServerCtx {
         unsafe { unwrap(inner.ctx, msg) }
     }
 
-    fn unwrap_iov(
-        &self,
-        msg: &mut [GssIov<GssIovReal>],
-    ) -> Result<(), Error> {
+    fn unwrap_iov(&self, msg: &mut [GssIov]) -> Result<(), Error> {
         let inner = self.0.lock();
         unsafe { unwrap_iov(inner.ctx, msg) }
     }
@@ -788,11 +765,7 @@ impl SecurityContext for ClientCtx {
         unsafe { wrap(inner.ctx, encrypt, msg) }
     }
 
-    fn wrap_iov(
-        &self,
-        encrypt: bool,
-        msg: &mut [GssIov<GssIovReal>],
-    ) -> Result<(), Error> {
+    fn wrap_iov(&self, encrypt: bool, msg: &mut [GssIov]) -> Result<(), Error> {
         let inner = self.0.lock();
         unsafe { wrap_iov(inner.ctx, encrypt, msg) }
     }
@@ -800,7 +773,7 @@ impl SecurityContext for ClientCtx {
     fn wrap_iov_length(
         &self,
         encrypt: bool,
-        msg: &mut [GssIov<GssIovFake>],
+        msg: &mut [GssIovFake],
     ) -> Result<(), Error> {
         let inner = self.0.lock();
         unsafe { wrap_iov_length(inner.ctx, encrypt, msg) }
@@ -811,10 +784,7 @@ impl SecurityContext for ClientCtx {
         unsafe { unwrap(inner.ctx, msg) }
     }
 
-    fn unwrap_iov(
-        &self,
-        msg: &mut [GssIov<GssIovReal>],
-    ) -> Result<(), Error> {
+    fn unwrap_iov(&self, msg: &mut [GssIov]) -> Result<(), Error> {
         let inner = self.0.lock();
         unsafe { unwrap_iov(inner.ctx, msg) }
     }

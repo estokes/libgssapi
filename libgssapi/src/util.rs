@@ -95,17 +95,38 @@ impl GssIovType {
     }
 }
 
-pub struct GssIovFake;
-pub struct GssIovReal;
+/// this is a "fake" iov that exists only to ask gssapi how much space
+/// it needs for the real one.
+#[repr(transparent)]
+#[derive(Debug)]
+pub struct GssIovFake(gss_iov_buffer_desc);
+
+impl GssIovFake {
+    /// Create a fake Iov for calls to wrap_iov_length
+    pub fn new(typ: GssIovType) -> GssIovFake {
+        let gss_iov = gss_iov_buffer_desc {
+            type_: typ.to_c(),
+            buffer: gss_buffer_desc_struct {
+                length: 0,
+                value: ptr::null_mut(),
+            },
+        };
+        GssIovFake(gss_iov)
+    }
+
+    pub fn len(&self) -> usize {
+        self.0.buffer.length as usize
+    }
+}
 
 #[repr(transparent)]
 #[derive(Debug)]
-pub struct GssIov<'a, K>(gss_iov_buffer_desc, PhantomData<&'a K>);
+pub struct GssIov<'a>(gss_iov_buffer_desc, PhantomData<&'a [u8]>);
 
-unsafe impl<'a, K> Send for GssIov<'a, K> {}
-unsafe impl<'a, K> Sync for GssIov<'a, K> {}
+unsafe impl<'a> Send for GssIov<'a> {}
+unsafe impl<'a> Sync for GssIov<'a> {}
 
-impl<'a, K> Drop for GssIov<'a, K> {
+impl<'a> Drop for GssIov<'a> {
     fn drop(&mut self) {
         // check if the buffer was allocated by gssapi
         if self.0.type_ & GSS_IOV_BUFFER_FLAG_MASK & GSS_IOV_BUFFER_FLAG_ALLOCATED > 0 {
@@ -120,7 +141,7 @@ impl<'a, K> Drop for GssIov<'a, K> {
     }
 }
 
-impl<'a> Deref for GssIov<'a, GssIovReal> {
+impl<'a> Deref for GssIov<'a> {
     type Target = [u8];
 
     fn deref(&self) -> &Self::Target {
@@ -129,37 +150,16 @@ impl<'a> Deref for GssIov<'a, GssIovReal> {
     }
 }
 
-impl<'a> DerefMut for GssIov<'a, GssIovReal> {
+impl<'a> DerefMut for GssIov<'a> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         let buf = self.0.buffer;
         unsafe { slice::from_raw_parts_mut(buf.value.cast(), buf.length as usize) }
     }
 }
 
-impl<'a> From<&'a mut [u8]> for GssIov<'a, GssIovReal> {
-    fn from(s: &mut [u8]) -> Self {
-        let gss_iov = gss_iov_buffer_desc {
-            type_: 0,
-            buffer: gss_buffer_desc_struct {
-                length: s.len() as size_t,
-                value: s.as_mut_ptr().cast(),
-            },
-        };
-        GssIov(gss_iov, PhantomData)
-    }
-}
-
-impl<'a> GssIov<'a, GssIovReal> {
-    /// cast a real iov to a fake one. You need to do this for the
-    /// DATA buffer for the call to `wrap_iov_length`.
-    pub fn as_fake(self) -> GssIov<'a, GssIovFake> {
-        GssIov(self.0, PhantomData)
-    }
-}
-
-impl<'a, K> GssIov<'a, K> {
+impl<'a> GssIov<'a> {
     /// Create a new real Iov for calls to wrap_iov.
-    pub fn new(typ: GssIovType, data: &'a mut [u8]) -> GssIov<'a, GssIovReal> {
+    pub fn new(typ: GssIovType, data: &'a mut [u8]) -> GssIov<'a> {
         let gss_iov = gss_iov_buffer_desc {
             type_: typ.to_c(),
             buffer: gss_buffer_desc_struct {
@@ -172,21 +172,9 @@ impl<'a, K> GssIov<'a, K> {
 
     /// Create a new real Iov that will have necessary storage
     /// allocated as needed by gssapi.
-    pub fn new_alloc(typ: GssIovType) -> GssIov<'a, GssIovReal> {
+    pub fn new_alloc(typ: GssIovType) -> GssIov<'a> {
         let gss_iov = gss_iov_buffer_desc {
             type_: typ.to_c() | GSS_IOV_BUFFER_FLAG_ALLOCATE,
-            buffer: gss_buffer_desc_struct {
-                length: 0,
-                value: ptr::null_mut(),
-            },
-        };
-        GssIov(gss_iov, PhantomData)
-    }
-
-    /// Create a fake Iov for calls to wrap_iov_length
-    pub fn new_fake(typ: GssIovType) -> GssIov<'a, GssIovFake> {
-        let gss_iov = gss_iov_buffer_desc {
-            type_: typ.to_c(),
             buffer: gss_buffer_desc_struct {
                 length: 0,
                 value: ptr::null_mut(),
@@ -199,13 +187,19 @@ impl<'a, K> GssIov<'a, K> {
         GssIovType::from_c(self.0.type_)
     }
 
+    /// cast a real iov to a fake one. You need to do this for the
+    /// DATA buffer for the call to `wrap_iov_length`.
+    pub fn as_fake(self) -> GssIovFake {
+        GssIovFake(self.0)
+    }
+
     /// In the special case where you unwrap a token using the
     /// "stream" method, and end up with a pointer into it, you may
     /// want to know the length of the header, so you can, for
     /// example, split out just the data and send it somewhere without
     /// copying it. This function will tell you that length. Don't use
     /// it otherwise.
-    pub fn header_length(&self, data: &GssIov<'a, GssIovReal>) -> Option<usize> {
+    pub fn header_length(&self, data: &GssIov<'a>) -> Option<usize> {
         match GssIovType::from_c(self.0.type_) {
             Some(GssIovType::Stream) => unsafe {
                 let base = mem::transmute::<*mut ffi::c_void, usize>(self.0.buffer.value);

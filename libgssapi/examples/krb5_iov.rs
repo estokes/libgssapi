@@ -10,7 +10,7 @@ use libgssapi::{
     credential::{Cred, CredUsage},
     error::Error,
     context::{CtxFlags, ClientCtx, ServerCtx, SecurityContext},
-    util::{Buf, GssIov, GssIovType},
+    util::{Buf, GssIov, GssIovType, GssIovFake, GssIovReal},
     oid::{OidSet, GSS_NT_HOSTBASED_SERVICE, GSS_MECH_KRB5},
 };
 
@@ -57,10 +57,10 @@ fn wrap_secret_msg_noalloc(ctx: &ClientCtx) -> Result<BytesMut, Error> {
     // the header, paddding, and trailer, along with the real data
     // buffer.
     let mut len_iovs = [
-        GssIov::new_fake(GssIovType::Header),
-        GssIov::new(GssIovType::Data, &mut *data).as_fake(),
-        GssIov::new_fake(GssIovType::Padding),
-        GssIov::new_fake(GssIovType::Trailer)
+        GssIov::<GssIovFake>::new_fake(GssIovType::Header),
+        GssIov::<GssIovFake>::new(GssIovType::Data, &mut *data).as_fake(),
+        GssIov::<GssIovFake>::new_fake(GssIovType::Padding),
+        GssIov::<GssIovFake>::new_fake(GssIovType::Trailer)
     ];
     ctx.wrap_iov_length(true, &mut len_iovs[..])?;
 
@@ -75,15 +75,15 @@ fn wrap_secret_msg_noalloc(ctx: &ClientCtx) -> Result<BytesMut, Error> {
     // library makes this much easier on us.
     let mut header = {
         buf.extend((0..len_iovs[0].len()).map(|_| 0));
-        buf.split();
+        buf.split()
     };
     let mut padding = {
         buf.extend((0..len_iovs[2].len()).map(|_| 0));
-        buf.split();
+        buf.split()
     };
     let mut trailer = {
         buf.extend((0..len_iovs[3].len()).map(|_| 0));
-        buf.split();
+        buf.split()
     };
     let mut iovs = [
         GssIov::new(GssIovType::Header, &mut *header),
