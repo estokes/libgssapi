@@ -1,4 +1,3 @@
-use crate::error::Error;
 use bytes;
 use libgssapi_sys::{
     gss_buffer_desc, gss_buffer_desc_struct, gss_buffer_t, gss_iov_buffer_desc,
@@ -13,6 +12,7 @@ pub use libgssapi_sys::{
     GSS_IOV_BUFFER_TYPE_TRAILER,
 };
 use std::{
+    ffi,
     marker::PhantomData,
     mem,
     ops::{Deref, DerefMut, Drop},
@@ -42,7 +42,7 @@ impl<'a> From<&'a [u8]> for BufRef<'a> {
     fn from(s: &[u8]) -> Self {
         let gss_buf = gss_buffer_desc_struct {
             length: s.len() as size_t,
-            value: unsafe { mem::transmute::<*const u8, *mut u8>(s.as_ptr()) },
+            value: unsafe { mem::transmute::<*const u8, *mut ffi::c_void>(s.as_ptr()) },
         };
         BufRef(gss_buf, PhantomData)
     }
@@ -54,8 +54,8 @@ impl<'a> BufRef<'a> {
     }
 }
 
-struct GssIovFake;
-struct GssIovReal;
+pub struct GssIovFake;
+pub struct GssIovReal;
 
 #[repr(transparent)]
 #[derive(Debug)]
@@ -64,7 +64,7 @@ pub struct GssIov<'a, K>(gss_iov_buffer_desc, PhantomData<&'a K>);
 unsafe impl<'a, K> Send for GssIov<'a, K> {}
 unsafe impl<'a, K> Sync for GssIov<'a, K> {}
 
-impl<'a> Drop for GssIov<'a, GssIovReal> {
+impl<'a, K> Drop for GssIov<'a, K> {
     fn drop(&mut self) {
         // check if the buffer was allocated by gssapi
         if self.0.type_ & GSS_IOV_BUFFER_FLAG_MASK & GSS_IOV_BUFFER_FLAG_ALLOCATED > 0 {
@@ -72,7 +72,7 @@ impl<'a> Drop for GssIov<'a, GssIovReal> {
             let _major = unsafe {
                 gss_release_buffer(
                     &mut minor as *mut OM_uint32,
-                    &mut self.0.buffer as gss_buffer_t
+                    &mut self.0.buffer as gss_buffer_t,
                 )
             };
         }
@@ -91,7 +91,7 @@ impl<'a> Deref for GssIov<'a, GssIovReal> {
 impl<'a> DerefMut for GssIov<'a, GssIovReal> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         let buf = self.0.buffer;
-        unsafe { slice::from_raw_parts_mut(buf.value, buf.length as usize) }
+        unsafe { slice::from_raw_parts_mut(buf.value.cast(), buf.length as usize) }
     }
 }
 
@@ -101,35 +101,41 @@ impl<'a> From<&'a mut [u8]> for GssIov<'a, GssIovReal> {
             type_: 0,
             buffer: gss_buffer_desc_struct {
                 length: s.len() as size_t,
-                value: s.as_mut_ptr(),
+                value: s.as_mut_ptr().cast(),
             },
         };
         GssIov(gss_iov, PhantomData)
     }
 }
 
+impl<'a> GssIov<'a, GssIovReal> {
+    pub fn as_fake(self) -> GssIov<'a, GssIovFake> {
+        GssIov(self.0, PhantomData)
+    }
+}
+
 impl<'a, K> GssIov<'a, K> {
     /// Create a fake Iov for calls to wrap_iov_length
-    pub fake() -> GssIov<'a, GssIovFake> {
+    pub fn fake() -> GssIov<'a, GssIovFake> {
         let gss_iov = gss_iov_buffer_desc {
             type_: 0,
             buffer: gss_buffer_desc_struct {
-                length: 0
-                value: ptr::null_mut()
-            }
+                length: 0,
+                value: ptr::null_mut(),
+            },
         };
         GssIov(gss_iov, PhantomData)
     }
 
-    pub typ(&self) -> &u32 {
+    pub fn typ(&self) -> &u32 {
         &self.0.type_
     }
 
-    pub typ_mut(&mut self) -> &mut u32 {
+    pub fn typ_mut(&mut self) -> &mut u32 {
         &mut self.0.type_
     }
 
-    pub len(&self) -> usize {
+    pub fn len(&self) -> usize {
         self.0.buffer.length as usize
     }
 }

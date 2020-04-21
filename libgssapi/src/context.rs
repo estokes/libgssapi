@@ -8,14 +8,15 @@ use crate::{
 use libgssapi_sys::{
     gss_OID, gss_accept_sec_context, gss_buffer_desc, gss_channel_bindings_struct,
     gss_cred_id_struct, gss_cred_id_t, gss_ctx_id_t, gss_delete_sec_context,
-    gss_init_sec_context, gss_inquire_context, gss_name_t, gss_unwrap, gss_wrap,
-    OM_uint32, GSS_C_ANON_FLAG, GSS_C_CONF_FLAG, GSS_C_DELEG_FLAG,
-    GSS_C_DELEG_POLICY_FLAG, GSS_C_INTEG_FLAG, GSS_C_MUTUAL_FLAG, GSS_C_PROT_READY_FLAG,
-    GSS_C_QOP_DEFAULT, GSS_C_REPLAY_FLAG, GSS_C_SEQUENCE_FLAG, GSS_C_TRANS_FLAG,
-    GSS_S_COMPLETE, _GSS_C_INDEFINITE, _GSS_S_CONTINUE_NEEDED,
+    gss_init_sec_context, gss_inquire_context, gss_iov_buffer_desc, gss_name_t,
+    gss_unwrap, gss_unwrap_iov, gss_wrap, gss_wrap_iov, gss_wrap_iov_length, OM_uint32,
+    GSS_C_ANON_FLAG, GSS_C_CONF_FLAG, GSS_C_DELEG_FLAG, GSS_C_DELEG_POLICY_FLAG,
+    GSS_C_INTEG_FLAG, GSS_C_MUTUAL_FLAG, GSS_C_PROT_READY_FLAG, GSS_C_QOP_DEFAULT,
+    GSS_C_REPLAY_FLAG, GSS_C_SEQUENCE_FLAG, GSS_C_TRANS_FLAG, GSS_S_COMPLETE,
+    _GSS_C_INDEFINITE, _GSS_S_CONTINUE_NEEDED,
 };
 use parking_lot::Mutex;
-use std::{ptr, sync::Arc, time::Duration};
+use std::{mem, ptr, sync::Arc, time::Duration};
 
 bitflags! {
     pub struct CtxFlags: u32 {
@@ -81,16 +82,43 @@ unsafe fn wrap_iov(
         GSS_C_QOP_DEFAULT,
         ptr::null_mut(),
         mem::transmute::<*mut GssIov<GssIovReal>, *mut gss_iov_buffer_desc>(
-            msg.as_mut_ptr()
+            msg.as_mut_ptr(),
         ),
-        msg.len() as size_t
+        msg.len() as i32,
     );
     if major == GSS_S_COMPLETE {
         Ok(())
     } else {
         Err(Error {
             major: MajorFlags::from_bits_unchecked(major),
-            minor
+            minor,
+        })
+    }
+}
+
+unsafe fn wrap_iov_len(
+    ctx: gss_ctx_id_t,
+    encrypt: bool,
+    msg: &mut [GssIov<GssIovFake>],
+) -> Result<(), Error> {
+    let mut minor = GSS_S_COMPLETE;
+    let major = gss_wrap_iov_length(
+        &mut minor as *mut OM_uint32,
+        ctx,
+        if encrypt { 1 } else { 0 },
+        GSS_C_QOP_DEFAULT,
+        ptr::null_mut(),
+        mem::transmute::<*mut GssIov<GssIovFake>, *mut gss_iov_buffer_desc>(
+            msg.as_mut_ptr(),
+        ),
+        msg.len() as i32,
+    );
+    if major == GSS_S_COMPLETE {
+        Ok(())
+    } else {
+        Err(Error {
+            major: MajorFlags::from_bits_unchecked(major),
+            minor,
         })
     }
 }

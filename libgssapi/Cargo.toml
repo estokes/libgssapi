@@ -13,7 +13,7 @@ categories = ["api-bindings", "authentication", "cryptography", "os::unix-apis"]
 
 [dependencies]
 bytes = "0.5"
-libgssapi-sys = "0.2"
+libgssapi-sys = { path = "../libgssapi-sys" }
 parking_lot = "0.10"
 bitflags = "1.2"
 lazy_static = "1.4"
