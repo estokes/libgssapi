@@ -315,7 +315,7 @@ unsafe impl Sync for ServerCtxInner {}
 /// The server side of a security context. Contexts are wrapped in and
 /// Arc<Mutex<_>> internally, so clones work and you can use them
 /// safely from other threads.
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct ServerCtx(Arc<Mutex<ServerCtxInner>>);
 
 impl ServerCtx {
@@ -484,7 +484,7 @@ unsafe impl Sync for ClientCtxInner {}
 /// The client side of a security context. Contexts are wrapped in and
 /// Arc<Mutex<_>> internally, so clones work and you can use them
 /// safely from other threads.
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct ClientCtx(Arc<Mutex<ClientCtxInner>>);
 
 impl ClientCtx {

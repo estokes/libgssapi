@@ -565,7 +565,7 @@ if that happens I guess file a bug.
         <span class="ident">mem</span>::<span class="ident">transmute</span>::<span class="op">&lt;</span><span class="kw-2">*</span><span class="kw">const</span> <span class="ident">Oid</span>, <span class="ident">gss_OID</span><span class="op">&gt;</span>(<span class="self">self</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">Oid</span>)
     }
 
-    <span class="doccomment">/// If you need to use an OID I didn&#39;t define above, then you must</span>
+    <span class="doccomment">/// If you need to use an OID I didn&#39;t define, then you must</span>
     <span class="doccomment">/// construct a BER encoded slice of it&#39;s components and store it</span>
     <span class="doccomment">/// in static memory (yes the standard REQUIRES that). Then you</span>
     <span class="doccomment">/// can pass it to this function and get a proper `Oid` handle. If</span>

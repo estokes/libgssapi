@@ -1,6 +1,7 @@
+use bytes;
 use libgssapi_sys::{
-    gss_buffer_desc, gss_buffer_desc_struct, gss_buffer_t, gss_release_buffer,
-    size_t, OM_uint32, GSS_S_COMPLETE,
+    gss_buffer_desc, gss_buffer_desc_struct, gss_buffer_t, gss_release_buffer, size_t,
+    OM_uint32, GSS_S_COMPLETE,
 };
 use std::{
     marker::PhantomData,
@@ -89,5 +90,45 @@ impl Buf {
 
     pub(crate) unsafe fn to_c(&mut self) -> gss_buffer_t {
         &mut self.0 as gss_buffer_t
+    }
+
+    /// Wrap this bytes in a structure that implements `bytes::Buf`
+    pub fn to_bytes(self) -> GssBytes {
+        GssBytes { pos: 0, buf: self }
+    }
+}
+
+#[derive(Debug)]
+pub struct GssBytes {
+    pos: usize,
+    buf: Buf,
+}
+
+impl bytes::Buf for GssBytes {
+    fn remaining(&self) -> usize {
+        self.buf.0.length as usize - self.pos
+    }
+
+    fn bytes(&self) -> &[u8] {
+        &((*self.buf)[self.pos..])
+    }
+
+    fn advance(&mut self, cnt: usize) {
+        let rem = self.remaining();
+        if cnt > rem {
+            panic!(
+                "advancing {} would overrun the remaining buffer {}",
+                cnt, rem
+            );
+        } else {
+            self.pos += cnt;
+        }
+    }
+}
+
+impl GssBytes {
+    /// Consume the GssBytes and return the inner buffer
+    pub fn into_inner(self) -> Buf {
+        self.buf
     }
 }

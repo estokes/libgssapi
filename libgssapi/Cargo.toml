@@ -12,6 +12,7 @@ keywords = ["gssapi", "sspi", "kerberos", "krb5", "authentication"]
 categories = ["api-bindings", "authentication", "cryptography", "os::unix-apis"]
 
 [dependencies]
+bytes = "0.5"
 libgssapi-sys = "0.2"
 parking_lot = "0.10"
 bitflags = "1.2"
