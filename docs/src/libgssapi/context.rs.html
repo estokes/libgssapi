@@ -1189,11 +1189,11 @@
 
     <span class="doccomment">/** From the MIT kerberos documentation,
 
-     * Sign and optionally encrypt a sequence of buffers. The buffers
-     * shall be ordered HEADER | DATA | PADDING | TRAILER. Suitable
-     * space for the header, padding and trailer should be provided
-     * by calling gss_wrap_iov_length(), or the ALLOCATE flag should
-     * be set on those buffers.
+    &gt; Sign and optionally encrypt a sequence of buffers. The buffers
+    &gt; shall be ordered HEADER | DATA | PADDING | TRAILER. Suitable
+    &gt; space for the header, padding and trailer should be provided
+    &gt; by calling gss_wrap_iov_length(), or the ALLOCATE flag should
+    &gt; be set on those buffers.
 
     rust note: if you don&#39;t want to use the ALLOCATE flag then call
     `wrap_iov_length` with a set of `GssIovFake`
@@ -1202,34 +1202,34 @@
     then need to use those lengths to allocate the correct amount of
     memory for the real wrap_iov call.
 
-     * Encryption is in-place. SIGN_ONLY buffers are untouched. Only
-     * a single PADDING buffer should be provided. The order of the
-     * buffers in memory does not matter. Buffers in the IOV should
-     * be arranged in the order above, and in the case of multiple
-     * DATA buffers the sender and receiver should agree on the
-     * order.
-     *
-     * With GSS_C_DCE_STYLE it is acceptable to not provide PADDING
-     * and TRAILER, but the caller must guarantee the plaintext data
-     * being encrypted is correctly padded, otherwise an error will
-     * be returned.
-     *
-     * While applications that have knowledge of the underlying
-     * cryptosystem may request a specific configuration of data
-     * buffers, the only generally supported configurations are:
-     *
-     *  HEADER | DATA | PADDING | TRAILER
-     *
-     * which will emit GSS_Wrap() compatible tokens, and:
-     *
-     *  HEADER | SIGN_ONLY | DATA | PADDING | TRAILER
-     *
-     * for AEAD.
-     *
-     * The typical (special cased) usage for DCE is as follows:
-     *
-     *  SIGN_ONLY_1 | DATA | SIGN_ONLY_2 | HEADER
-     **/</span>
+    &gt; Encryption is in-place. SIGN_ONLY buffers are untouched. Only
+    &gt; a single PADDING buffer should be provided. The order of the
+    &gt; buffers in memory does not matter. Buffers in the IOV should
+    &gt; be arranged in the order above, and in the case of multiple
+    &gt; DATA buffers the sender and receiver should agree on the
+    &gt; order.
+    &gt;
+    &gt; With GSS_C_DCE_STYLE it is acceptable to not provide PADDING
+    &gt; and TRAILER, but the caller must guarantee the plaintext data
+    &gt; being encrypted is correctly padded, otherwise an error will
+    &gt; be returned.
+    &gt;
+    &gt; While applications that have knowledge of the underlying
+    &gt; cryptosystem may request a specific configuration of data
+    &gt; buffers, the only generally supported configurations are:
+    &gt;
+    &gt; HEADER | DATA | PADDING | TRAILER
+    &gt;
+    &gt; which will emit GSS_Wrap() compatible tokens, and:
+    &gt;
+    &gt; HEADER | SIGN_ONLY | DATA | PADDING | TRAILER
+    &gt;
+    &gt; for AEAD.
+    &gt;
+    &gt; The typical (special cased) usage for DCE is as follows:
+    &gt; 
+    &gt; SIGN_ONLY_1 | DATA | SIGN_ONLY_2 | HEADER
+     */</span>
     <span class="kw">fn</span> <span class="ident">wrap_iov</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">encrypt</span>: <span class="ident">bool</span>, <span class="ident">msg</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> [<span class="ident">GssIov</span>]) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">Error</span><span class="op">&gt;</span>;
 
     <span class="doccomment">/// This will set the required length of all the buffers except</span>
@@ -1245,20 +1245,20 @@
 
     <span class="doccomment">/** From the MIT Kerberos documentation,
 
-    * gss_unwrap_iov may be called with an IOV list just like one which
-    * would be provided to gss_wrap_iov. DATA buffers will be decrypted
-    * in-place if they were encrypted, and SIGN_ONLY buffers will not be
-    * modified.
+    &gt; gss_unwrap_iov may be called with an IOV list just like one which
+    &gt; would be provided to gss_wrap_iov. DATA buffers will be decrypted
+    &gt; in-place if they were encrypted, and SIGN_ONLY buffers will not be
+    &gt; modified.
 
-    * Alternatively, gss_unwrap_iov may be called with a single STREAM
-    * buffer, zero or more SIGN_ONLY buffers, and a single DATA
-    * buffer. The STREAM buffer is interpreted as a complete wrap
-    * token. The STREAM buffer will be modified in-place to decrypt its
-    * contents. The DATA buffer will be initialized to point to the
-    * decrypted data within the STREAM buffer, unless it has the
-    * GSS_C_BUFFER_FLAG_ALLOCATE flag set, in which case it will be
-    * initialized with a copy of the decrypted data.
-    **/</span>
+    &gt; Alternatively, gss_unwrap_iov may be called with a single STREAM
+    &gt; buffer, zero or more SIGN_ONLY buffers, and a single DATA
+    &gt; buffer. The STREAM buffer is interpreted as a complete wrap
+    &gt; token. The STREAM buffer will be modified in-place to decrypt its
+    &gt; contents. The DATA buffer will be initialized to point to the
+    &gt; decrypted data within the STREAM buffer, unless it has the
+    &gt; GSS_C_BUFFER_FLAG_ALLOCATE flag set, in which case it will be
+    &gt; initialized with a copy of the decrypted data.
+    */</span>
     <span class="kw">fn</span> <span class="ident">unwrap_iov</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">msg</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> [<span class="ident">GssIov</span>]) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">Error</span><span class="op">&gt;</span>;
 
     <span class="doccomment">/// Get all information about a security context in one call</span>

@@ -357,11 +357,11 @@ pub trait SecurityContext {
 
     /** From the MIT kerberos documentation,
 
-     * Sign and optionally encrypt a sequence of buffers. The buffers
-     * shall be ordered HEADER | DATA | PADDING | TRAILER. Suitable
-     * space for the header, padding and trailer should be provided
-     * by calling gss_wrap_iov_length(), or the ALLOCATE flag should
-     * be set on those buffers.
+    > Sign and optionally encrypt a sequence of buffers. The buffers
+    > shall be ordered HEADER | DATA | PADDING | TRAILER. Suitable
+    > space for the header, padding and trailer should be provided
+    > by calling gss_wrap_iov_length(), or the ALLOCATE flag should
+    > be set on those buffers.
 
     rust note: if you don't want to use the ALLOCATE flag then call
     `wrap_iov_length` with a set of `GssIovFake`
@@ -370,34 +370,34 @@ pub trait SecurityContext {
     then need to use those lengths to allocate the correct amount of
     memory for the real wrap_iov call.
 
-     * Encryption is in-place. SIGN_ONLY buffers are untouched. Only
-     * a single PADDING buffer should be provided. The order of the
-     * buffers in memory does not matter. Buffers in the IOV should
-     * be arranged in the order above, and in the case of multiple
-     * DATA buffers the sender and receiver should agree on the
-     * order.
-     *
-     * With GSS_C_DCE_STYLE it is acceptable to not provide PADDING
-     * and TRAILER, but the caller must guarantee the plaintext data
-     * being encrypted is correctly padded, otherwise an error will
-     * be returned.
-     *
-     * While applications that have knowledge of the underlying
-     * cryptosystem may request a specific configuration of data
-     * buffers, the only generally supported configurations are:
-     *
-     *  HEADER | DATA | PADDING | TRAILER
-     *
-     * which will emit GSS_Wrap() compatible tokens, and:
-     *
-     *  HEADER | SIGN_ONLY | DATA | PADDING | TRAILER
-     *
-     * for AEAD.
-     *
-     * The typical (special cased) usage for DCE is as follows:
-     *
-     *  SIGN_ONLY_1 | DATA | SIGN_ONLY_2 | HEADER
-     **/
+    > Encryption is in-place. SIGN_ONLY buffers are untouched. Only
+    > a single PADDING buffer should be provided. The order of the
+    > buffers in memory does not matter. Buffers in the IOV should
+    > be arranged in the order above, and in the case of multiple
+    > DATA buffers the sender and receiver should agree on the
+    > order.
+    >
+    > With GSS_C_DCE_STYLE it is acceptable to not provide PADDING
+    > and TRAILER, but the caller must guarantee the plaintext data
+    > being encrypted is correctly padded, otherwise an error will
+    > be returned.
+    >
+    > While applications that have knowledge of the underlying
+    > cryptosystem may request a specific configuration of data
+    > buffers, the only generally supported configurations are:
+    >
+    > HEADER | DATA | PADDING | TRAILER
+    >
+    > which will emit GSS_Wrap() compatible tokens, and:
+    >
+    > HEADER | SIGN_ONLY | DATA | PADDING | TRAILER
+    >
+    > for AEAD.
+    >
+    > The typical (special cased) usage for DCE is as follows:
+    > 
+    > SIGN_ONLY_1 | DATA | SIGN_ONLY_2 | HEADER
+     */
     fn wrap_iov(&self, encrypt: bool, msg: &mut [GssIov]) -> Result<(), Error>;
 
     /// This will set the required length of all the buffers except
@@ -413,20 +413,20 @@ pub trait SecurityContext {
 
     /** From the MIT Kerberos documentation,
 
-    * gss_unwrap_iov may be called with an IOV list just like one which
-    * would be provided to gss_wrap_iov. DATA buffers will be decrypted
-    * in-place if they were encrypted, and SIGN_ONLY buffers will not be
-    * modified.
+    > gss_unwrap_iov may be called with an IOV list just like one which
+    > would be provided to gss_wrap_iov. DATA buffers will be decrypted
+    > in-place if they were encrypted, and SIGN_ONLY buffers will not be
+    > modified.
 
-    * Alternatively, gss_unwrap_iov may be called with a single STREAM
-    * buffer, zero or more SIGN_ONLY buffers, and a single DATA
-    * buffer. The STREAM buffer is interpreted as a complete wrap
-    * token. The STREAM buffer will be modified in-place to decrypt its
-    * contents. The DATA buffer will be initialized to point to the
-    * decrypted data within the STREAM buffer, unless it has the
-    * GSS_C_BUFFER_FLAG_ALLOCATE flag set, in which case it will be
-    * initialized with a copy of the decrypted data.
-    **/
+    > Alternatively, gss_unwrap_iov may be called with a single STREAM
+    > buffer, zero or more SIGN_ONLY buffers, and a single DATA
+    > buffer. The STREAM buffer is interpreted as a complete wrap
+    > token. The STREAM buffer will be modified in-place to decrypt its
+    > contents. The DATA buffer will be initialized to point to the
+    > decrypted data within the STREAM buffer, unless it has the
+    > GSS_C_BUFFER_FLAG_ALLOCATE flag set, in which case it will be
+    > initialized with a copy of the decrypted data.
+    */
     fn unwrap_iov(&self, msg: &mut [GssIov]) -> Result<(), Error>;
 
     /// Get all information about a security context in one call

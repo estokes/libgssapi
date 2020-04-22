@@ -18,49 +18,40 @@ then only the other side of the context can read the
 message. In any case the other side can always verify message
 integrity.</p>
 </div><h3 id='tymethod.wrap_iov' class='method'><code id='wrap_iov.v'>fn <a href='#tymethod.wrap_iov' class='fnname'>wrap_iov</a>(&amp;self, encrypt: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.bool.html">bool</a>, msg: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">&amp;mut [</a><a class="struct" href="../../libgssapi/util/struct.GssIov.html" title="struct libgssapi::util::GssIov">GssIov</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">]</a>) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.unit.html">()</a>, <a class="struct" href="../../libgssapi/error/struct.Error.html" title="struct libgssapi::error::Error">Error</a>&gt;</code></h3><div class='docblock'><p>From the MIT kerberos documentation,</p>
-
-<div class="example-wrap"><pre class="rust rust-example-rendered">
-<span class="op">*</span> <span class="ident">Sign</span> <span class="ident">and</span> <span class="ident">optionally</span> <span class="ident">encrypt</span> <span class="ident">a</span> <span class="ident">sequence</span> <span class="ident">of</span> <span class="ident">buffers</span>. <span class="ident">The</span> <span class="ident">buffers</span>
-<span class="op">*</span> <span class="ident">shall</span> <span class="ident">be</span> <span class="ident">ordered</span> <span class="ident">HEADER</span> <span class="op">|</span> <span class="ident">DATA</span> <span class="op">|</span> <span class="ident">PADDING</span> <span class="op">|</span> <span class="ident">TRAILER</span>. <span class="ident">Suitable</span>
-<span class="op">*</span> <span class="ident">space</span> <span class="kw">for</span> <span class="ident">the</span> <span class="ident">header</span>, <span class="ident">padding</span> <span class="ident">and</span> <span class="ident">trailer</span> <span class="ident">should</span> <span class="ident">be</span> <span class="ident">provided</span>
-<span class="op">*</span> <span class="ident">by</span> <span class="ident">calling</span> <span class="ident">gss_wrap_iov_length</span>(), <span class="ident">or</span> <span class="ident">the</span> <span class="ident">ALLOCATE</span> <span class="ident">flag</span> <span class="ident">should</span>
-<span class="op">*</span> <span class="ident">be</span> <span class="ident">set</span> <span class="ident">on</span> <span class="ident">those</span> <span class="ident">buffers</span>.</pre></div>
+<blockquote>
+<p>Sign and optionally encrypt a sequence of buffers. The buffers
+shall be ordered HEADER | DATA | PADDING | TRAILER. Suitable
+space for the header, padding and trailer should be provided
+by calling gss_wrap_iov_length(), or the ALLOCATE flag should
+be set on those buffers.</p>
+</blockquote>
 <p>rust note: if you don't want to use the ALLOCATE flag then call
 <code>wrap_iov_length</code> with a set of <code>GssIovFake</code>
 objects. These don't contain any allocated memory, and can't be
 dererenced or used, but the C library will set their length. You
 then need to use those lengths to allocate the correct amount of
 memory for the real wrap_iov call.</p>
-
-<div class="example-wrap"><pre class="rust rust-example-rendered">
-<span class="op">*</span> <span class="ident">Encryption</span> <span class="ident">is</span> <span class="kw">in</span><span class="op">-</span><span class="ident">place</span>. <span class="ident">SIGN_ONLY</span> <span class="ident">buffers</span> <span class="ident">are</span> <span class="ident">untouched</span>. <span class="ident">Only</span>
-<span class="op">*</span> <span class="ident">a</span> <span class="ident">single</span> <span class="ident">PADDING</span> <span class="ident">buffer</span> <span class="ident">should</span> <span class="ident">be</span> <span class="ident">provided</span>. <span class="ident">The</span> <span class="ident">order</span> <span class="ident">of</span> <span class="ident">the</span>
-<span class="op">*</span> <span class="ident">buffers</span> <span class="kw">in</span> <span class="ident">memory</span> <span class="ident">does</span> <span class="ident">not</span> <span class="ident">matter</span>. <span class="ident">Buffers</span> <span class="kw">in</span> <span class="ident">the</span> <span class="ident">IOV</span> <span class="ident">should</span>
-<span class="op">*</span> <span class="ident">be</span> <span class="ident">arranged</span> <span class="kw">in</span> <span class="ident">the</span> <span class="ident">order</span> <span class="ident">above</span>, <span class="ident">and</span> <span class="kw">in</span> <span class="ident">the</span> <span class="ident">case</span> <span class="ident">of</span> <span class="ident">multiple</span>
-<span class="op">*</span> <span class="ident">DATA</span> <span class="ident">buffers</span> <span class="ident">the</span> <span class="ident">sender</span> <span class="ident">and</span> <span class="ident">receiver</span> <span class="ident">should</span> <span class="ident">agree</span> <span class="ident">on</span> <span class="ident">the</span>
-<span class="op">*</span> <span class="ident">order</span>.
-<span class="op">*</span>
-<span class="op">*</span> <span class="ident">With</span> <span class="ident">GSS_C_DCE_STYLE</span> <span class="ident">it</span> <span class="ident">is</span> <span class="ident">acceptable</span> <span class="ident">to</span> <span class="ident">not</span> <span class="ident">provide</span> <span class="ident">PADDING</span>
-<span class="op">*</span> <span class="ident">and</span> <span class="ident">TRAILER</span>, <span class="ident">but</span> <span class="ident">the</span> <span class="ident">caller</span> <span class="ident">must</span> <span class="ident">guarantee</span> <span class="ident">the</span> <span class="ident">plaintext</span> <span class="ident">data</span>
-<span class="op">*</span> <span class="ident">being</span> <span class="ident">encrypted</span> <span class="ident">is</span> <span class="ident">correctly</span> <span class="ident">padded</span>, <span class="ident">otherwise</span> <span class="ident">an</span> <span class="ident">error</span> <span class="ident">will</span>
-<span class="op">*</span> <span class="ident">be</span> <span class="ident">returned</span>.
-<span class="op">*</span>
-<span class="op">*</span> <span class="ident">While</span> <span class="ident">applications</span> <span class="ident">that</span> <span class="ident">have</span> <span class="ident">knowledge</span> <span class="ident">of</span> <span class="ident">the</span> <span class="ident">underlying</span>
-<span class="op">*</span> <span class="ident">cryptosystem</span> <span class="ident">may</span> <span class="ident">request</span> <span class="ident">a</span> <span class="ident">specific</span> <span class="ident">configuration</span> <span class="ident">of</span> <span class="ident">data</span>
-<span class="op">*</span> <span class="ident">buffers</span>, <span class="ident">the</span> <span class="ident">only</span> <span class="ident">generally</span> <span class="ident">supported</span> <span class="ident">configurations</span> <span class="ident">are</span>:
-<span class="op">*</span>
-<span class="op">*</span>  <span class="ident">HEADER</span> <span class="op">|</span> <span class="ident">DATA</span> <span class="op">|</span> <span class="ident">PADDING</span> <span class="op">|</span> <span class="ident">TRAILER</span>
-<span class="op">*</span>
-<span class="op">*</span> <span class="ident">which</span> <span class="ident">will</span> <span class="ident">emit</span> <span class="ident">GSS_Wrap</span>() <span class="ident">compatible</span> <span class="ident">tokens</span>, <span class="ident">and</span>:
-<span class="op">*</span>
-<span class="op">*</span>  <span class="ident">HEADER</span> <span class="op">|</span> <span class="ident">SIGN_ONLY</span> <span class="op">|</span> <span class="ident">DATA</span> <span class="op">|</span> <span class="ident">PADDING</span> <span class="op">|</span> <span class="ident">TRAILER</span>
-<span class="op">*</span>
-<span class="op">*</span> <span class="kw">for</span> <span class="ident">AEAD</span>.
-<span class="op">*</span>
-<span class="op">*</span> <span class="ident">The</span> <span class="ident">typical</span> (<span class="ident">special</span> <span class="ident">cased</span>) <span class="ident">usage</span> <span class="kw">for</span> <span class="ident">DCE</span> <span class="ident">is</span> <span class="kw">as</span> <span class="ident">follows</span>:
-<span class="op">*</span>
-<span class="op">*</span>  <span class="ident">SIGN_ONLY_1</span> <span class="op">|</span> <span class="ident">DATA</span> <span class="op">|</span> <span class="ident">SIGN_ONLY_2</span> <span class="op">|</span> <span class="ident">HEADER</span>
-<span class="kw-2">*</span></pre></div>
+<blockquote>
+<p>Encryption is in-place. SIGN_ONLY buffers are untouched. Only
+a single PADDING buffer should be provided. The order of the
+buffers in memory does not matter. Buffers in the IOV should
+be arranged in the order above, and in the case of multiple
+DATA buffers the sender and receiver should agree on the
+order.</p>
+<p>With GSS_C_DCE_STYLE it is acceptable to not provide PADDING
+and TRAILER, but the caller must guarantee the plaintext data
+being encrypted is correctly padded, otherwise an error will
+be returned.</p>
+<p>While applications that have knowledge of the underlying
+cryptosystem may request a specific configuration of data
+buffers, the only generally supported configurations are:</p>
+<p>HEADER | DATA | PADDING | TRAILER</p>
+<p>which will emit GSS_Wrap() compatible tokens, and:</p>
+<p>HEADER | SIGN_ONLY | DATA | PADDING | TRAILER</p>
+<p>for AEAD.</p>
+<p>The typical (special cased) usage for DCE is as follows:</p>
+<p>SIGN_ONLY_1 | DATA | SIGN_ONLY_2 | HEADER</p>
+</blockquote>
 </div><h3 id='tymethod.wrap_iov_length' class='method'><code id='wrap_iov_length.v'>fn <a href='#tymethod.wrap_iov_length' class='fnname'>wrap_iov_length</a>(<br>&nbsp;&nbsp;&nbsp;&nbsp;&amp;self, <br>&nbsp;&nbsp;&nbsp;&nbsp;encrypt: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.bool.html">bool</a>, <br>&nbsp;&nbsp;&nbsp;&nbsp;msg: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">&amp;mut [</a><a class="struct" href="../../libgssapi/util/struct.GssIovFake.html" title="struct libgssapi::util::GssIovFake">GssIovFake</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">]</a><br>) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.unit.html">()</a>, <a class="struct" href="../../libgssapi/error/struct.Error.html" title="struct libgssapi::error::Error">Error</a>&gt;</code></h3><div class='docblock'><p>This will set the required length of all the buffers except
 the data buffer, which must be provided as it will be to
 wrap_iov. The value of the encrypt flag must match what you
@@ -68,45 +59,22 @@ pass to <code>wrap_iov</code>.</p>
 </div><h3 id='tymethod.unwrap' class='method'><code id='unwrap.v'>fn <a href='#tymethod.unwrap' class='fnname'>unwrap</a>(&amp;self, msg: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">&amp;[</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u8.html">u8</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">]</a>) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;<a class="struct" href="../../libgssapi/util/struct.Buf.html" title="struct libgssapi::util::Buf">Buf</a>, <a class="struct" href="../../libgssapi/error/struct.Error.html" title="struct libgssapi::error::Error">Error</a>&gt;</code></h3><div class='docblock'><p>Unwrap a wrapped message, checking it's integrity and
 decrypting it if necessary.</p>
 </div><h3 id='tymethod.unwrap_iov' class='method'><code id='unwrap_iov.v'>fn <a href='#tymethod.unwrap_iov' class='fnname'>unwrap_iov</a>(&amp;self, msg: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">&amp;mut [</a><a class="struct" href="../../libgssapi/util/struct.GssIov.html" title="struct libgssapi::util::GssIov">GssIov</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">]</a>) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.unit.html">()</a>, <a class="struct" href="../../libgssapi/error/struct.Error.html" title="struct libgssapi::error::Error">Error</a>&gt;</code></h3><div class='docblock'><p>From the MIT Kerberos documentation,</p>
-<ul>
-<li>
-<p>gss_unwrap_iov may be called with an IOV list just like one which</p>
-</li>
-<li>
-<p>would be provided to gss_wrap_iov. DATA buffers will be decrypted</p>
-</li>
-<li>
-<p>in-place if they were encrypted, and SIGN_ONLY buffers will not be</p>
-</li>
-<li>
-<p>modified.</p>
-</li>
-<li>
-<p>Alternatively, gss_unwrap_iov may be called with a single STREAM</p>
-</li>
-<li>
-<p>buffer, zero or more SIGN_ONLY buffers, and a single DATA</p>
-</li>
-<li>
-<p>buffer. The STREAM buffer is interpreted as a complete wrap</p>
-</li>
-<li>
-<p>token. The STREAM buffer will be modified in-place to decrypt its</p>
-</li>
-<li>
-<p>contents. The DATA buffer will be initialized to point to the</p>
-</li>
-<li>
-<p>decrypted data within the STREAM buffer, unless it has the</p>
-</li>
-<li>
-<p>GSS_C_BUFFER_FLAG_ALLOCATE flag set, in which case it will be</p>
-</li>
-<li>
-<p>initialized with a copy of the decrypted data.</p>
-</li>
-<li></li>
-</ul>
+<blockquote>
+<p>gss_unwrap_iov may be called with an IOV list just like one which
+would be provided to gss_wrap_iov. DATA buffers will be decrypted
+in-place if they were encrypted, and SIGN_ONLY buffers will not be
+modified.</p>
+</blockquote>
+<blockquote>
+<p>Alternatively, gss_unwrap_iov may be called with a single STREAM
+buffer, zero or more SIGN_ONLY buffers, and a single DATA
+buffer. The STREAM buffer is interpreted as a complete wrap
+token. The STREAM buffer will be modified in-place to decrypt its
+contents. The DATA buffer will be initialized to point to the
+decrypted data within the STREAM buffer, unless it has the
+GSS_C_BUFFER_FLAG_ALLOCATE flag set, in which case it will be
+initialized with a copy of the decrypted data.</p>
+</blockquote>
 </div><h3 id='tymethod.info' class='method'><code id='info.v'>fn <a href='#tymethod.info' class='fnname'>info</a>(&amp;self) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;<a class="struct" href="../../libgssapi/context/struct.CtxInfo.html" title="struct libgssapi::context::CtxInfo">CtxInfo</a>, <a class="struct" href="../../libgssapi/error/struct.Error.html" title="struct libgssapi::error::Error">Error</a>&gt;</code></h3><div class='docblock'><p>Get all information about a security context in one call</p>
 </div><h3 id='tymethod.source_name' class='method'><code id='source_name.v'>fn <a href='#tymethod.source_name' class='fnname'>source_name</a>(&amp;self) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;<a class="struct" href="../../libgssapi/name/struct.Name.html" title="struct libgssapi::name::Name">Name</a>, <a class="struct" href="../../libgssapi/error/struct.Error.html" title="struct libgssapi::error::Error">Error</a>&gt;</code></h3><div class='docblock'><p>Get the source name of the security context</p>
 </div><h3 id='tymethod.target_name' class='method'><code id='target_name.v'>fn <a href='#tymethod.target_name' class='fnname'>target_name</a>(&amp;self) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;<a class="struct" href="../../libgssapi/name/struct.Name.html" title="struct libgssapi::name::Name">Name</a>, <a class="struct" href="../../libgssapi/error/struct.Error.html" title="struct libgssapi::error::Error">Error</a>&gt;</code></h3><div class='docblock'><p>Get the target name of the security context</p>
