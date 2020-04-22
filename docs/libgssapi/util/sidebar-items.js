@@ -1,1 +1,1 @@
-initSidebarItems({"struct":[["Buf","This represents an owned buffer we got from gssapi, it will be deallocated via the library routine when it is dropped."]]});
+initSidebarItems({"enum":[["GssIovType",""]],"struct":[["Buf","This represents an owned buffer we got from gssapi, it will be deallocated via the library routine when it is dropped."],["GssBytes",""],["GssIov",""],["GssIovFake","this is a \"fake\" iov that exists only to ask gssapi how much space it needs for the real one."]]});

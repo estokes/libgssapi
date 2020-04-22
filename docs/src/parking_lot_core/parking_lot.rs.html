@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source to the Rust file `/home/eric/.cargo/registry/src/github.com-1ecc6299db9ec823/parking_lot_core-0.7.0/src/parking_lot.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>parking_lot.rs.html -- source</title><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../dark.css"><link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle"><script src="../../storage.js"></script><noscript><link rel="stylesheet" href="../../noscript.css"></noscript><link rel="shortcut icon" href="../../favicon.ico"><style type="text/css">#crate-search{background-image:url("../../down-arrow.svg");}</style></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div><a href='../../parking_lot_core/index.html'><div class='logo-container'><img src='../../rust-logo.png' alt='logo'></div></a></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../theme.js"></script><nav class="sub"><form class="search-form"><div class="search-container"><div><select id="crate-search"><option value="All crates">All crates</option></select><input class="search-input" name="search" disabled autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"></div><a id="settings-menu" href="../../settings.html"><img src="../../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1">   1</span>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source to the Rust file `/home/eric/.cargo/registry/src/github.com-1ecc6299db9ec823/parking_lot_core-0.7.2/src/parking_lot.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>parking_lot.rs.html -- source</title><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../dark.css"><link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle"><script src="../../storage.js"></script><noscript><link rel="stylesheet" href="../../noscript.css"></noscript><link rel="shortcut icon" href="../../favicon.ico"><style type="text/css">#crate-search{background-image:url("../../down-arrow.svg");}</style></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div><a href='../../parking_lot_core/index.html'><div class='logo-container'><img src='../../rust-logo.png' alt='logo'></div></a></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../theme.js"></script><nav class="sub"><form class="search-form"><div class="search-container"><div><select id="crate-search"><option value="All crates">All crates</option></select><input class="search-input" name="search" disabled autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"></div><a id="settings-menu" href="../../settings.html"><img src="../../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1">   1</span>
 <span id="2">   2</span>
 <span id="3">   3</span>
 <span id="4">   4</span>
@@ -1662,6 +1662,50 @@
 <span id="1662">1662</span>
 <span id="1663">1663</span>
 <span id="1664">1664</span>
+<span id="1665">1665</span>
+<span id="1666">1666</span>
+<span id="1667">1667</span>
+<span id="1668">1668</span>
+<span id="1669">1669</span>
+<span id="1670">1670</span>
+<span id="1671">1671</span>
+<span id="1672">1672</span>
+<span id="1673">1673</span>
+<span id="1674">1674</span>
+<span id="1675">1675</span>
+<span id="1676">1676</span>
+<span id="1677">1677</span>
+<span id="1678">1678</span>
+<span id="1679">1679</span>
+<span id="1680">1680</span>
+<span id="1681">1681</span>
+<span id="1682">1682</span>
+<span id="1683">1683</span>
+<span id="1684">1684</span>
+<span id="1685">1685</span>
+<span id="1686">1686</span>
+<span id="1687">1687</span>
+<span id="1688">1688</span>
+<span id="1689">1689</span>
+<span id="1690">1690</span>
+<span id="1691">1691</span>
+<span id="1692">1692</span>
+<span id="1693">1693</span>
+<span id="1694">1694</span>
+<span id="1695">1695</span>
+<span id="1696">1696</span>
+<span id="1697">1697</span>
+<span id="1698">1698</span>
+<span id="1699">1699</span>
+<span id="1700">1700</span>
+<span id="1701">1701</span>
+<span id="1702">1702</span>
+<span id="1703">1703</span>
+<span id="1704">1704</span>
+<span id="1705">1705</span>
+<span id="1706">1706</span>
+<span id="1707">1707</span>
+<span id="1708">1708</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="comment">// Copyright 2016 Amanieu d&#39;Antras</span>
 <span class="comment">//</span>
@@ -1669,7 +1713,7 @@
 <span class="comment">// http://apache.org/licenses/LICENSE-2.0&gt; or the MIT license &lt;LICENSE-MIT or</span>
 <span class="comment">// http://opensource.org/licenses/MIT&gt;, at your option. This file may not be</span>
 <span class="comment">// copied, modified, or distributed except according to those terms.</span>
-
+<span class="kw">use</span> <span class="ident">cfg_if</span>::<span class="ident">cfg_if</span>;
 <span class="kw">use</span> <span class="kw">crate</span>::<span class="ident">thread_parker</span>::{<span class="ident">ThreadParker</span>, <span class="ident">ThreadParkerT</span>, <span class="ident">UnparkHandleT</span>};
 <span class="kw">use</span> <span class="kw">crate</span>::<span class="ident">util</span>::<span class="ident">UncheckedOptionExt</span>;
 <span class="kw">use</span> <span class="kw">crate</span>::<span class="ident">word_lock</span>::<span class="ident">WordLock</span>;
@@ -1680,6 +1724,46 @@
 };
 <span class="kw">use</span> <span class="ident">smallvec</span>::<span class="ident">SmallVec</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">time</span>::{<span class="ident">Duration</span>, <span class="ident">Instant</span>};
+
+<span class="macro">cfg_if</span><span class="macro">!</span> {
+    <span class="kw">if</span> <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">all</span>(
+        <span class="ident">target_arch</span> <span class="op">=</span> <span class="string">&quot;wasm32&quot;</span>,
+        <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;unknown&quot;</span>,
+        <span class="ident">target_vendor</span> <span class="op">=</span> <span class="string">&quot;unknown&quot;</span>
+    ))]</span> {
+        <span class="kw">use</span> <span class="ident">core</span>::<span class="ident">ops</span>::<span class="ident">Add</span>;
+
+        <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Copy</span>, <span class="ident">Clone</span>, <span class="ident">PartialEq</span>, <span class="ident">Eq</span>, <span class="ident">PartialOrd</span>, <span class="ident">Ord</span>, <span class="ident">Debug</span>, <span class="ident">Hash</span>)]</span>
+        <span class="kw">struct</span> <span class="ident">DummyInstant</span>(<span class="ident">Duration</span>);
+
+        <span class="kw">impl</span> <span class="ident">DummyInstant</span> {
+            <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">now</span>() <span class="op">-</span><span class="op">&gt;</span> <span class="ident">DummyInstant</span> {
+                <span class="ident">DummyInstant</span>::<span class="ident">zero</span>()
+            }
+
+            <span class="kw">const</span> <span class="kw">fn</span> <span class="ident">zero</span>() <span class="op">-</span><span class="op">&gt;</span> <span class="ident">DummyInstant</span> {
+                <span class="ident">DummyInstant</span>(<span class="ident">Duration</span>::<span class="ident">from_secs</span>(<span class="number">0</span>))
+            }
+        }
+
+        <span class="kw">impl</span> <span class="ident">Add</span><span class="op">&lt;</span><span class="ident">Duration</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">DummyInstant</span> {
+            <span class="kw">type</span> <span class="ident">Output</span> <span class="op">=</span> <span class="ident">DummyInstant</span>;
+
+            <span class="kw">fn</span> <span class="ident">add</span>(<span class="self">self</span>, <span class="ident">_rhs</span>: <span class="ident">Duration</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">DummyInstant</span> {
+                <span class="ident">DummyInstant</span>::<span class="ident">zero</span>()
+            }
+        }
+
+        <span class="comment">// Use dummy implementation for `Instant` on `wasm32`. The reason for this is</span>
+        <span class="comment">// that `Instant::now()` will always panic because time is currently not implemented</span>
+        <span class="comment">// on wasm32-unknown-unknown.</span>
+        <span class="comment">// See https://github.com/rust-lang/rust/blob/master/src/libstd/sys/wasm/time.rs</span>
+        <span class="kw">type</span> <span class="ident">InstantType</span> <span class="op">=</span> <span class="ident">DummyInstant</span>;
+    } <span class="kw">else</span> {
+        <span class="comment">// Otherwise use `std::time::Instant`</span>
+        <span class="kw">type</span> <span class="ident">InstantType</span> <span class="op">=</span> <span class="ident">Instant</span>;
+    }
+}
 
 <span class="kw">static</span> <span class="ident">NUM_THREADS</span>: <span class="ident">AtomicUsize</span> <span class="op">=</span> <span class="ident">AtomicUsize</span>::<span class="ident">new</span>(<span class="number">0</span>);
 
@@ -1712,7 +1796,7 @@
         <span class="kw">let</span> <span class="ident">new_size</span> <span class="op">=</span> (<span class="ident">num_threads</span> <span class="op">*</span> <span class="ident">LOAD_FACTOR</span>).<span class="ident">next_power_of_two</span>();
         <span class="kw">let</span> <span class="ident">hash_bits</span> <span class="op">=</span> <span class="number">0usize</span>.<span class="ident">leading_zeros</span>() <span class="op">-</span> <span class="ident">new_size</span>.<span class="ident">leading_zeros</span>() <span class="op">-</span> <span class="number">1</span>;
 
-        <span class="kw">let</span> <span class="ident">now</span> <span class="op">=</span> <span class="ident">Instant</span>::<span class="ident">now</span>();
+        <span class="kw">let</span> <span class="ident">now</span> <span class="op">=</span> <span class="ident">InstantType</span>::<span class="ident">now</span>();
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">entries</span> <span class="op">=</span> <span class="ident">Vec</span>::<span class="ident">with_capacity</span>(<span class="ident">new_size</span>);
         <span class="kw">for</span> <span class="ident">i</span> <span class="kw">in</span> <span class="number">0</span>..<span class="ident">new_size</span> {
             <span class="comment">// We must ensure the seed is not zero</span>
@@ -1742,7 +1826,7 @@
 
 <span class="kw">impl</span> <span class="ident">Bucket</span> {
     <span class="attribute">#[<span class="ident">inline</span>]</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">timeout</span>: <span class="ident">Instant</span>, <span class="ident">seed</span>: <span class="ident">u32</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">timeout</span>: <span class="ident">InstantType</span>, <span class="ident">seed</span>: <span class="ident">u32</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="self">Self</span> {
         <span class="self">Self</span> {
             <span class="ident">mutex</span>: <span class="ident">WordLock</span>::<span class="ident">new</span>(),
             <span class="ident">queue_head</span>: <span class="ident">Cell</span>::<span class="ident">new</span>(<span class="ident">ptr</span>::<span class="ident">null</span>()),
@@ -1754,7 +1838,7 @@
 
 <span class="kw">struct</span> <span class="ident">FairTimeout</span> {
     <span class="comment">// Next time at which point be_fair should be set</span>
-    <span class="ident">timeout</span>: <span class="ident">Instant</span>,
+    <span class="ident">timeout</span>: <span class="ident">InstantType</span>,
 
     <span class="comment">// the PRNG state for calculating the next timeout</span>
     <span class="ident">seed</span>: <span class="ident">u32</span>,
@@ -1762,14 +1846,14 @@
 
 <span class="kw">impl</span> <span class="ident">FairTimeout</span> {
     <span class="attribute">#[<span class="ident">inline</span>]</span>
-    <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">timeout</span>: <span class="ident">Instant</span>, <span class="ident">seed</span>: <span class="ident">u32</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">FairTimeout</span> {
+    <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">timeout</span>: <span class="ident">InstantType</span>, <span class="ident">seed</span>: <span class="ident">u32</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">FairTimeout</span> {
         <span class="ident">FairTimeout</span> { <span class="ident">timeout</span>, <span class="ident">seed</span> }
     }
 
     <span class="comment">// Determine whether we should force a fair unlock, and update the timeout</span>
     <span class="attribute">#[<span class="ident">inline</span>]</span>
     <span class="kw">fn</span> <span class="ident">should_timeout</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">bool</span> {
-        <span class="kw">let</span> <span class="ident">now</span> <span class="op">=</span> <span class="ident">Instant</span>::<span class="ident">now</span>();
+        <span class="kw">let</span> <span class="ident">now</span> <span class="op">=</span> <span class="ident">InstantType</span>::<span class="ident">now</span>();
         <span class="kw">if</span> <span class="ident">now</span> <span class="op">&gt;</span> <span class="self">self</span>.<span class="ident">timeout</span> {
             <span class="comment">// Time between 0 and 1ms.</span>
             <span class="kw">let</span> <span class="ident">nanos</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">gen_u32</span>() <span class="op">%</span> <span class="number">1_000_000</span>;
@@ -1881,8 +1965,8 @@
     <span class="kw">let</span> <span class="ident">table</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">HASHTABLE</span>.<span class="ident">compare_exchange</span>(
         <span class="ident">ptr</span>::<span class="ident">null_mut</span>(),
         <span class="ident">new_table</span>,
-        <span class="ident">Ordering</span>::<span class="ident">Release</span>,
-        <span class="ident">Ordering</span>::<span class="ident">Relaxed</span>,
+        <span class="ident">Ordering</span>::<span class="ident">AcqRel</span>,
+        <span class="ident">Ordering</span>::<span class="ident">Acquire</span>,
     ) {
         <span class="prelude-val">Ok</span>(<span class="kw">_</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">new_table</span>,
         <span class="prelude-val">Err</span>(<span class="ident">old_table</span>) <span class="op">=</span><span class="op">&gt;</span> {
@@ -2863,10 +2947,14 @@
     <span class="kw">pub</span> <span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">release_resource</span>(<span class="ident">key</span>: <span class="ident">usize</span>) {
         <span class="ident">with_thread_data</span>(<span class="op">|</span><span class="ident">thread_data</span><span class="op">|</span> {
             <span class="kw">let</span> <span class="ident">resources</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="kw-2">mut</span> (<span class="kw-2">*</span><span class="ident">thread_data</span>.<span class="ident">deadlock_data</span>.<span class="ident">resources</span>.<span class="ident">get</span>());
-            <span class="kw">match</span> <span class="ident">resources</span>.<span class="ident">iter</span>().<span class="ident">rposition</span>(<span class="op">|</span><span class="ident">x</span><span class="op">|</span> <span class="kw-2">*</span><span class="ident">x</span> <span class="op">=</span><span class="op">=</span> <span class="ident">key</span>) {
-                <span class="prelude-val">Some</span>(<span class="ident">p</span>) <span class="op">=</span><span class="op">&gt;</span> <span class="ident">resources</span>.<span class="ident">swap_remove</span>(<span class="ident">p</span>),
-                <span class="prelude-val">None</span> <span class="op">=</span><span class="op">&gt;</span> <span class="macro">panic</span><span class="macro">!</span>(<span class="string">&quot;key {} not found in thread resources&quot;</span>, <span class="ident">key</span>),
-            };
+
+            <span class="comment">// There is only one situation where we can fail to find the</span>
+            <span class="comment">// resource: we are currently running TLS destructors and our</span>
+            <span class="comment">// ThreadData has already been freed. There isn&#39;t much we can do</span>
+            <span class="comment">// about it at this point, so just ignore it.</span>
+            <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">p</span>) <span class="op">=</span> <span class="ident">resources</span>.<span class="ident">iter</span>().<span class="ident">rposition</span>(<span class="op">|</span><span class="ident">x</span><span class="op">|</span> <span class="kw-2">*</span><span class="ident">x</span> <span class="op">=</span><span class="op">=</span> <span class="ident">key</span>) {
+                <span class="ident">resources</span>.<span class="ident">swap_remove</span>(<span class="ident">p</span>);
+            }
         });
     }
 

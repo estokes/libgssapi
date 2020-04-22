@@ -46,7 +46,7 @@ woken up.</li>
 <span class="kw">if</span> <span class="op">!</span><span class="kw-2">*</span><span class="ident">started</span> {
     <span class="ident">cvar</span>.<span class="ident">wait</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">started</span>);
 }
-<span class="comment">// Note that we used and if instead of a while loop above. This is only</span>
+<span class="comment">// Note that we used an if instead of a while loop above. This is only</span>
 <span class="comment">// possible because parking_lot&#39;s Condvar will never spuriously wake up.</span>
 <span class="comment">// This means that wait() will only return after notify_one or notify_all is</span>
 <span class="comment">// called.</span></pre></div>

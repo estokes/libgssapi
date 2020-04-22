@@ -1,5 +1,6 @@
 var ALIASES = {};
 ALIASES["bitflags"] = {};
+ALIASES["bytes"] = {};
 ALIASES["cfg_if"] = {};
 ALIASES["lazy_static"] = {};
 ALIASES["libc"] = {};

@@ -1,0 +1,3 @@
+(function() {var implementors = {};
+implementors["libgssapi"] = [{"text":"impl <a class=\"trait\" href=\"bytes/buf/buf_impl/trait.Buf.html\" title=\"trait bytes::buf::buf_impl::Buf\">Buf</a> for <a class=\"struct\" href=\"libgssapi/util/struct.GssBytes.html\" title=\"struct libgssapi::util::GssBytes\">GssBytes</a>","synthetic":false,"types":["libgssapi::util::GssBytes"]}];
+if (window.register_implementors) {window.register_implementors(implementors);} else {window.pending_implementors = implementors;}})()
