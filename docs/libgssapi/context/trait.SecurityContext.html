@@ -26,7 +26,7 @@ integrity.</p>
 <span class="op">*</span> <span class="ident">by</span> <span class="ident">calling</span> <span class="ident">gss_wrap_iov_length</span>(), <span class="ident">or</span> <span class="ident">the</span> <span class="ident">ALLOCATE</span> <span class="ident">flag</span> <span class="ident">should</span>
 <span class="op">*</span> <span class="ident">be</span> <span class="ident">set</span> <span class="ident">on</span> <span class="ident">those</span> <span class="ident">buffers</span>.</pre></div>
 <p>rust note: if you don't want to use the ALLOCATE flag then call
-<code>wrap_iov_length</code> with a set of <code>GssIov&lt;GssIovFake&gt;</code>
+<code>wrap_iov_length</code> with a set of <code>GssIovFake</code>
 objects. These don't contain any allocated memory, and can't be
 dererenced or used, but the C library will set their length. You
 then need to use those lengths to allocate the correct amount of

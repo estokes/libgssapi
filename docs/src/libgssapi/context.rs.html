@@ -1196,7 +1196,7 @@
      * be set on those buffers.
 
     rust note: if you don&#39;t want to use the ALLOCATE flag then call
-    `wrap_iov_length` with a set of `GssIov&lt;GssIovFake&gt;`
+    `wrap_iov_length` with a set of `GssIovFake`
     objects. These don&#39;t contain any allocated memory, and can&#39;t be
     dererenced or used, but the C library will set their length. You
     then need to use those lengths to allocate the correct amount of
