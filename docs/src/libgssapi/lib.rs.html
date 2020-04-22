@@ -14,22 +14,172 @@
 <span id="14">14</span>
 <span id="15">15</span>
 <span id="16">16</span>
+<span id="17">17</span>
+<span id="18">18</span>
+<span id="19">19</span>
+<span id="20">20</span>
+<span id="21">21</span>
+<span id="22">22</span>
+<span id="23">23</span>
+<span id="24">24</span>
+<span id="25">25</span>
+<span id="26">26</span>
+<span id="27">27</span>
+<span id="28">28</span>
+<span id="29">29</span>
+<span id="30">30</span>
+<span id="31">31</span>
+<span id="32">32</span>
+<span id="33">33</span>
+<span id="34">34</span>
+<span id="35">35</span>
+<span id="36">36</span>
+<span id="37">37</span>
+<span id="38">38</span>
+<span id="39">39</span>
+<span id="40">40</span>
+<span id="41">41</span>
+<span id="42">42</span>
+<span id="43">43</span>
+<span id="44">44</span>
+<span id="45">45</span>
+<span id="46">46</span>
+<span id="47">47</span>
+<span id="48">48</span>
+<span id="49">49</span>
+<span id="50">50</span>
+<span id="51">51</span>
+<span id="52">52</span>
+<span id="53">53</span>
+<span id="54">54</span>
+<span id="55">55</span>
+<span id="56">56</span>
+<span id="57">57</span>
+<span id="58">58</span>
+<span id="59">59</span>
+<span id="60">60</span>
+<span id="61">61</span>
+<span id="62">62</span>
+<span id="63">63</span>
+<span id="64">64</span>
+<span id="65">65</span>
+<span id="66">66</span>
+<span id="67">67</span>
+<span id="68">68</span>
+<span id="69">69</span>
+<span id="70">70</span>
+<span id="71">71</span>
+<span id="72">72</span>
+<span id="73">73</span>
+<span id="74">74</span>
+<span id="75">75</span>
+<span id="76">76</span>
+<span id="77">77</span>
+<span id="78">78</span>
+<span id="79">79</span>
+<span id="80">80</span>
+<span id="81">81</span>
+<span id="82">82</span>
+<span id="83">83</span>
+<span id="84">84</span>
+<span id="85">85</span>
+<span id="86">86</span>
+<span id="87">87</span>
+<span id="88">88</span>
+<span id="89">89</span>
+<span id="90">90</span>
+<span id="91">91</span>
 </pre><div class="example-wrap"><pre class="rust ">
-<span class="doccomment">//! The abstract model of gssapi is client/server, there is always the</span>
-<span class="doccomment">//! idea of a client that is going to create a `context` with some</span>
-<span class="doccomment">//! server. The process of creating the context will mutually</span>
-<span class="doccomment">//! authenticate the client and the server to each other, and they can</span>
-<span class="doccomment">//! then use it to exchange encrypted, and/or integrity checked</span>
-<span class="doccomment">//! messages for some period of time while the context is valid. So if</span>
-<span class="doccomment">//! you&#39;re lost start in the context module.</span>
+<span class="doccomment">//! Gssapi is the standard way of using Kerberos to build and use</span>
+<span class="doccomment">//! Kerberized services on unix. It has other uses, but Kerberos is by</span>
+<span class="doccomment">//! far the most common (and making Kerberos work well is the focus of</span>
+<span class="doccomment">//! this library).</span>
+<span class="doccomment">//!</span>
+<span class="doccomment">//! ## Contexts</span>
+<span class="doccomment">//!</span>
+<span class="doccomment">//! Gssapi is used through contexts which are connected to each other</span>
+<span class="doccomment">//! in a mechanism specific way. In the case of Kerberos once you have</span>
+<span class="doccomment">//! a context set up you can use to to send and receive encrypted</span>
+<span class="doccomment">//! messages that only the other side can read. Other mechanisms may</span>
+<span class="doccomment">//! or may not provide this feature.</span>
+<span class="doccomment">//!</span>
+<span class="doccomment">//! * Initiate a new connection with a [`ClientCtx`](context/struct.ClientCtx.html)</span>
+<span class="doccomment">//! * Accept a client connection with a [`ServerCtx`](context/struct.ServerCtx.html)</span>
+<span class="doccomment">//! * Both types implement [`SecurityContext`](context/trait.SecurityContext.html)</span>
+<span class="doccomment">//!</span>
+<span class="doccomment">//! Unlike SSL Gssapi is completely independent of the transport. It</span>
+<span class="doccomment">//! will give you tokens to send to the other side, and tell you when</span>
+<span class="doccomment">//! the context is established, it&#39;s up to you to decide how the data</span>
+<span class="doccomment">//! gets there.</span>
+<span class="doccomment">//! </span>
+<span class="doccomment">//! ```</span>
+<span class="doccomment">//! use std::env::args;</span>
+<span class="doccomment">//! use libgssapi::{</span>
+<span class="doccomment">//!     name::Name,</span>
+<span class="doccomment">//!     credential::{Cred, CredUsage},</span>
+<span class="doccomment">//!     error::Error,</span>
+<span class="doccomment">//!     context::{CtxFlags, ClientCtx, ServerCtx, SecurityContext},</span>
+<span class="doccomment">//!     util::Buf,</span>
+<span class="doccomment">//!     oid::{OidSet, GSS_NT_HOSTBASED_SERVICE, GSS_MECH_KRB5},</span>
+<span class="doccomment">//! };</span>
+<span class="doccomment">//! </span>
+<span class="doccomment">//! fn setup_server_ctx(</span>
+<span class="doccomment">//!     service_name: &amp;[u8],</span>
+<span class="doccomment">//!     desired_mechs: &amp;OidSet</span>
+<span class="doccomment">//! ) -&gt; Result&lt;(ServerCtx, Name), Error&gt; {</span>
+<span class="doccomment">//!     let name = Name::new(service_name, Some(&amp;GSS_NT_HOSTBASED_SERVICE))?;</span>
+<span class="doccomment">//!     let cname = name.canonicalize(Some(&amp;GSS_MECH_KRB5))?;</span>
+<span class="doccomment">//!     let server_cred = Cred::acquire(</span>
+<span class="doccomment">//!         Some(&amp;cname), None, CredUsage::Accept, Some(desired_mechs)</span>
+<span class="doccomment">//!     )?;</span>
+<span class="doccomment">//!     Ok((ServerCtx::new(server_cred), cname))</span>
+<span class="doccomment">//! }</span>
+<span class="doccomment">//! </span>
+<span class="doccomment">//! fn setup_client_ctx(</span>
+<span class="doccomment">//!     service_name: Name,</span>
+<span class="doccomment">//!     desired_mechs: &amp;OidSet</span>
+<span class="doccomment">//! ) -&gt; Result&lt;ClientCtx, Error&gt; {</span>
+<span class="doccomment">//!     let client_cred = Cred::acquire(</span>
+<span class="doccomment">//!         None, None, CredUsage::Initiate, Some(&amp;desired_mechs)</span>
+<span class="doccomment">//!     )?;</span>
+<span class="doccomment">//!     Ok(ClientCtx::new(</span>
+<span class="doccomment">//!         client_cred, service_name, CtxFlags::GSS_C_MUTUAL_FLAG, Some(&amp;GSS_MECH_KRB5)</span>
+<span class="doccomment">//!     ))</span>
+<span class="doccomment">//! }</span>
+<span class="doccomment">//! </span>
+<span class="doccomment">//! fn run(service_name: &amp;[u8]) -&gt; Result&lt;(), Error&gt; {</span>
+<span class="doccomment">//!     let desired_mechs = {</span>
+<span class="doccomment">//!         let mut s = OidSet::new()?;</span>
+<span class="doccomment">//!         s.add(&amp;GSS_MECH_KRB5)?;</span>
+<span class="doccomment">//!         s</span>
+<span class="doccomment">//!     };</span>
+<span class="doccomment">//!     let (server_ctx, cname) = setup_server_ctx(service_name, &amp;desired_mechs)?;</span>
+<span class="doccomment">//!     let client_ctx = setup_client_ctx(cname, &amp;desired_mechs)?;</span>
+<span class="doccomment">//!     let mut server_tok: Option&lt;Buf&gt; = None;</span>
+<span class="doccomment">//!     loop {</span>
+<span class="doccomment">//!         match client_ctx.step(server_tok.as_ref().map(|b| &amp;**b))? {</span>
+<span class="doccomment">//!             None =&gt; break,</span>
+<span class="doccomment">//!             Some(client_tok) =&gt; match server_ctx.step(&amp;*client_tok)? {</span>
+<span class="doccomment">//!                 None =&gt; break,</span>
+<span class="doccomment">//!                 Some(tok) =&gt; { server_tok = Some(tok); }</span>
+<span class="doccomment">//!             }</span>
+<span class="doccomment">//!         }</span>
+<span class="doccomment">//!     }</span>
+<span class="doccomment">//!     let secret_msg = client_ctx.wrap(true, b&quot;super secret message&quot;)?;</span>
+<span class="doccomment">//!     let decoded_msg = server_ctx.unwrap(&amp;*secret_msg)?;</span>
+<span class="doccomment">//!     println!(&quot;the decrypted message is: &#39;{}&#39;&quot;, String::from_utf8_lossy(&amp;*decoded_msg));</span>
+<span class="doccomment">//!     Ok(())</span>
+<span class="doccomment">//! }</span>
+<span class="doccomment">//! ```</span>
 <span class="attribute">#[<span class="ident">macro_use</span>]</span> <span class="kw">extern</span> <span class="kw">crate</span> <span class="ident">bitflags</span>;
 <span class="attribute">#[<span class="ident">macro_use</span>]</span> <span class="kw">extern</span> <span class="kw">crate</span> <span class="ident">lazy_static</span>;
-
+ 
 <span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">oid</span>;
 <span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">error</span>;
 <span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">util</span>;
 <span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">name</span>;
 <span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">credential</span>;
 <span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">context</span>;
+ 
 </pre></div>
 </section><section id="search" class="content hidden"></section><section class="footer"></section><script>window.rootPath = "../../";window.currentCrate = "libgssapi";</script><script src="../../aliases.js"></script><script src="../../main.js"></script><script src="../../source-script.js"></script><script src="../../source-files.js"></script><script defer src="../../search-index.js"></script></body></html>
