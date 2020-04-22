@@ -204,11 +204,7 @@ impl<'a> GssIov<'a> {
             Some(GssIovType::Stream) => unsafe {
                 let base = mem::transmute::<*mut ffi::c_void, usize>(self.0.buffer.value);
                 let data = mem::transmute::<*mut ffi::c_void, usize>(data.0.buffer.value);
-                if base > data {
-                    Some(data - base)
-                } else {
-                    Some(base - data)
-                }
+                Some(data - base)
             }
             _ => None
         }

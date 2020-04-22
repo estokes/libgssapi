@@ -80,7 +80,10 @@ unsafe impl Sync for Cred {}
 
 impl fmt::Debug for Cred {
     fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
-        write!(f, "<gss credential>")
+        match self.info() {
+            Err(e) => write!(f, "error getting credential info {}", e),
+            Ok(ifo) => write!(f, "{:?}", ifo)
+        }
     }
 }
 

@@ -3,44 +3,88 @@
  * should see when you do run it), however it demonstrates using
  * wrap_iov, and unwrap_iov to do in place encryption/decryption. */
 
-use std::env::args;
 use bytes::BytesMut;
 use libgssapi::{
-    name::Name,
+    context::{ClientCtx, CtxFlags, SecurityContext, ServerCtx},
     credential::{Cred, CredUsage},
     error::Error,
-    context::{CtxFlags, ClientCtx, ServerCtx, SecurityContext},
-    util::{Buf, GssIov, GssIovType, GssIovFake, GssIovReal},
-    oid::{OidSet, GSS_NT_HOSTBASED_SERVICE, GSS_MECH_KRB5},
+    name::Name,
+    oid::{OidSet, GSS_MECH_KRB5, GSS_NT_HOSTBASED_SERVICE},
+    util::{Buf, GssIov, GssIovFake, GssIovType},
 };
+use std::env::args;
 
 fn setup_server_ctx(
     service_name: &[u8],
-    desired_mechs: &OidSet
+    desired_mechs: &OidSet,
 ) -> Result<(ServerCtx, Name), Error> {
     println!("import name");
     let name = Name::new(service_name, Some(&GSS_NT_HOSTBASED_SERVICE))?;
     let cname = name.canonicalize(Some(&GSS_MECH_KRB5))?;
     println!("canonicalize name for kerberos 5");
     println!("server name: {}, server cname: {}", name, cname);
-    let server_cred = Cred::acquire(
-        Some(&cname), None, CredUsage::Accept, Some(desired_mechs)
-    )?;
+    let server_cred =
+        Cred::acquire(Some(&cname), None, CredUsage::Accept, Some(desired_mechs))?;
     println!("acquired server credentials: {:#?}", server_cred.info()?);
     Ok((ServerCtx::new(server_cred), cname))
 }
 
 fn setup_client_ctx(
     service_name: Name,
-    desired_mechs: &OidSet
+    desired_mechs: &OidSet,
 ) -> Result<ClientCtx, Error> {
-    let client_cred = Cred::acquire(
-        None, None, CredUsage::Initiate, Some(&desired_mechs)
-    )?;
-    println!("acquired default client credentials: {:#?}", client_cred.info()?);
+    let client_cred =
+        Cred::acquire(None, None, CredUsage::Initiate, Some(&desired_mechs))?;
+    println!(
+        "acquired default client credentials: {:#?}",
+        client_cred.info()?
+    );
     Ok(ClientCtx::new(
-        client_cred, service_name, CtxFlags::GSS_C_MUTUAL_FLAG, Some(&GSS_MECH_KRB5)
+        client_cred,
+        service_name,
+        CtxFlags::GSS_C_MUTUAL_FLAG,
+        Some(&GSS_MECH_KRB5),
     ))
+}
+
+// This wraps a secret message asking gssapi to allocate the header
+// padding and trailer, but it encrypts the actual message content in
+// place. This is easy mode for iovs, and if your messages are large
+// it's probably nearly as fast as hard mode.
+fn wrap_secret_msg_alloc(ctx: &ClientCtx) -> Result<BytesMut, Error> {
+    let mut buf = BytesMut::new();
+    let mut data = {
+        buf.extend_from_slice(b"super secret message");
+        buf.split()
+    };
+    let mut iovs = [
+        // iovs we want gssapi to allocate must be created with
+        // new_alloc, such iovs will be freed with gss_release_buffer
+        // when they are dropped.
+        GssIov::new_alloc(GssIovType::Header),
+        GssIov::new(GssIovType::Data, &mut *data),
+        GssIov::new_alloc(GssIovType::Padding),
+        GssIov::new_alloc(GssIovType::Trailer),
+    ];
+    ctx.wrap_iov(true, &mut iovs[..])?;
+    println!("buffer lengths are as follows ...");
+    println!("header:  {}", iovs[0].len());
+    println!("data:    {}", iovs[1].len());
+    println!("padding: {}", iovs[2].len());
+    println!("trailer: {}", iovs[3].len());
+
+    // now we would normally use a function like `write_vectored` to
+    // write our iovecs to a socket. We'll simulate that by assembling
+    // it all in a BytesMut that we will then pass to the decrypt
+    // function.
+    buf.extend_from_slice(&*iovs[0]);
+    buf.extend_from_slice(&*iovs[1]);
+    buf.extend_from_slice(&*iovs[2]);
+    buf.extend_from_slice(&*iovs[3]);
+    // of course we would not do the above in a real application
+    // because it copies all the data we just carefully and verbosely
+    // used wrap_iov to avoid copying! But this is an example,
+    Ok(buf.split())
 }
 
 // This wraps a secret message without asking gssapi to allocate
@@ -57,10 +101,10 @@ fn wrap_secret_msg_noalloc(ctx: &ClientCtx) -> Result<BytesMut, Error> {
     // the header, paddding, and trailer, along with the real data
     // buffer.
     let mut len_iovs = [
-        GssIov::<GssIovFake>::new_fake(GssIovType::Header),
-        GssIov::<GssIovFake>::new(GssIovType::Data, &mut *data).as_fake(),
-        GssIov::<GssIovFake>::new_fake(GssIovType::Padding),
-        GssIov::<GssIovFake>::new_fake(GssIovType::Trailer)
+        GssIovFake::new(GssIovType::Header),
+        GssIov::new(GssIovType::Data, &mut *data).as_fake(),
+        GssIovFake::new(GssIovType::Padding),
+        GssIovFake::new(GssIovType::Trailer),
     ];
     ctx.wrap_iov_length(true, &mut len_iovs[..])?;
 
@@ -85,18 +129,21 @@ fn wrap_secret_msg_noalloc(ctx: &ClientCtx) -> Result<BytesMut, Error> {
         buf.extend((0..len_iovs[3].len()).map(|_| 0));
         buf.split()
     };
-    let mut iovs = [
-        GssIov::new(GssIovType::Header, &mut *header),
-        GssIov::new(GssIovType::Data, &mut *data),
-        GssIov::new(GssIovType::Padding, &mut *padding),
-        GssIov::new(GssIovType::Trailer, &mut *trailer),
-    ];
-    // and we can ask gssapi to encrypt/encode the buffers
-    ctx.wrap_iov(true, &mut iovs[..])?;
+    {
+        let mut iovs = [
+            GssIov::new(GssIovType::Header, &mut *header),
+            GssIov::new(GssIovType::Data, &mut *data),
+            GssIov::new(GssIovType::Padding, &mut *padding),
+            GssIov::new(GssIovType::Trailer, &mut *trailer),
+        ];
+        // and we can ask gssapi to encrypt/encode the buffers
+        ctx.wrap_iov(true, &mut iovs[..])?;
+    }
 
-    // now we would use a function like `write_vectored` to write our
-    // iovecs to a socket. We'll simulate that by assembling it all in
-    // a Bytes that we will then pass to the decrypt function.
+    // now we would normally use a function like `write_vectored` to
+    // write our iovecs to a socket. We'll simulate that by assembling
+    // it all in a BytesMut that we will then pass to the decrypt
+    // function.
     buf.extend_from_slice(&*header);
     buf.extend_from_slice(&*data);
     buf.extend_from_slice(&*padding);
@@ -108,16 +155,19 @@ fn wrap_secret_msg_noalloc(ctx: &ClientCtx) -> Result<BytesMut, Error> {
 }
 
 fn unwrap_secret_msg(ctx: &ServerCtx, mut msg: BytesMut) -> Result<BytesMut, Error> {
-    let mut iov = [
-        // this is the entire token
-        GssIov::new(GssIovType::Stream, &mut *msg),
-        // in the end this will point into the above buffer
-        GssIov::new(GssIovType::Data, &mut [])
-    ];
-    ctx.unwrap_iov(&mut iov[..])?;
-    let hdr_len = iov[0].header_length(&iov[1]).unwrap();
-    let data_len = iov[1].len();
-    let data = msg.split_off(hdr_len);
+    let (hdr_len, data_len) = {
+        let mut iov = [
+            // this is the entire token
+            GssIov::new(GssIovType::Stream, &mut *msg),
+            // in the end this will point into the above buffer
+            GssIov::new(GssIovType::Data, &mut []),
+        ];
+        ctx.unwrap_iov(&mut iov[..])?;
+        let hdr_len = iov[0].header_length(&iov[1]).unwrap();
+        let data_len = iov[1].len();
+        (hdr_len, data_len)
+    };
+    let mut data = msg.split_off(hdr_len);
     msg.clear(); // delete the header
     data.truncate(data_len); // delete the trailer
     Ok(data)
@@ -137,18 +187,27 @@ fn run(service_name: &[u8]) -> Result<(), Error> {
             None => break,
             Some(client_tok) => match server_ctx.step(&*client_tok)? {
                 None => break,
-                Some(tok) => { server_tok = Some(tok); }
-            }
+                Some(tok) => {
+                    server_tok = Some(tok);
+                }
+            },
         }
     }
     println!("security context initialized successfully");
     println!("client ctx info: {:#?}", client_ctx.info()?);
     println!("server ctx info: {:#?}", server_ctx.info()?);
+    println!("wrapping secret message using no alloc method");
     let encrypted = wrap_secret_msg_noalloc(&client_ctx)?;
     let decrypted = unwrap_secret_msg(&server_ctx, encrypted)?;
-    println!("the secret message is ... Segmentation fault, core dumped");
     println!(
-        "just kidding, the secret message is \"{}\"",
+        "The secret message is \"{}\"",
+        String::from_utf8_lossy(&*decrypted)
+    );
+    println!("wrapping secret message using alloc method");
+    let encrypted = wrap_secret_msg_alloc(&client_ctx)?;
+    let decrypted = unwrap_secret_msg(&server_ctx, encrypted)?;
+    println!(
+        "The secret message is \"{}\"",
         String::from_utf8_lossy(&*decrypted)
     );
     Ok(())
