@@ -413,20 +413,20 @@ pub trait SecurityContext {
 
     /** From the MIT Kerberos documentation,
 
-    gss_unwrap_iov may be called with an IOV list just like one which
-    would be provided to gss_wrap_iov. DATA buffers will be decrypted
-    in-place if they were encrypted, and SIGN_ONLY buffers will not be
-    modified.
+    * gss_unwrap_iov may be called with an IOV list just like one which
+    * would be provided to gss_wrap_iov. DATA buffers will be decrypted
+    * in-place if they were encrypted, and SIGN_ONLY buffers will not be
+    * modified.
 
-    Alternatively, gss_unwrap_iov may be called with a single STREAM
-    buffer, zero or more SIGN_ONLY buffers, and a single DATA
-    buffer. The STREAM buffer is interpreted as a complete wrap
-    token. The STREAM buffer will be modified in-place to decrypt its
-    contents. The DATA buffer will be initialized to point to the
-    decrypted data within the STREAM buffer, unless it has the
-    GSS_C_BUFFER_FLAG_ALLOCATE flag set, in which case it will be
-    initialized with a copy of the decrypted data.
-    */
+    * Alternatively, gss_unwrap_iov may be called with a single STREAM
+    * buffer, zero or more SIGN_ONLY buffers, and a single DATA
+    * buffer. The STREAM buffer is interpreted as a complete wrap
+    * token. The STREAM buffer will be modified in-place to decrypt its
+    * contents. The DATA buffer will be initialized to point to the
+    * decrypted data within the STREAM buffer, unless it has the
+    * GSS_C_BUFFER_FLAG_ALLOCATE flag set, in which case it will be
+    * initialized with a copy of the decrypted data.
+    **/
     fn unwrap_iov(&self, msg: &mut [GssIov]) -> Result<(), Error>;
 
     /// Get all information about a security context in one call
