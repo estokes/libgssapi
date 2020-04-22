@@ -364,7 +364,7 @@ pub trait SecurityContext {
      * be set on those buffers.
 
     rust note: if you don't want to use the ALLOCATE flag then call
-    `wrap_iov_length` with a set of `GssIov<GssIovFake>`
+    `wrap_iov_length` with a set of `GssIovFake`
     objects. These don't contain any allocated memory, and can't be
     dererenced or used, but the C library will set their length. You
     then need to use those lengths to allocate the correct amount of
