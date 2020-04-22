@@ -1245,20 +1245,20 @@
 
     <span class="doccomment">/** From the MIT Kerberos documentation,
 
-    gss_unwrap_iov may be called with an IOV list just like one which
-    would be provided to gss_wrap_iov. DATA buffers will be decrypted
-    in-place if they were encrypted, and SIGN_ONLY buffers will not be
-    modified.
+    * gss_unwrap_iov may be called with an IOV list just like one which
+    * would be provided to gss_wrap_iov. DATA buffers will be decrypted
+    * in-place if they were encrypted, and SIGN_ONLY buffers will not be
+    * modified.
 
-    Alternatively, gss_unwrap_iov may be called with a single STREAM
-    buffer, zero or more SIGN_ONLY buffers, and a single DATA
-    buffer. The STREAM buffer is interpreted as a complete wrap
-    token. The STREAM buffer will be modified in-place to decrypt its
-    contents. The DATA buffer will be initialized to point to the
-    decrypted data within the STREAM buffer, unless it has the
-    GSS_C_BUFFER_FLAG_ALLOCATE flag set, in which case it will be
-    initialized with a copy of the decrypted data.
-    */</span>
+    * Alternatively, gss_unwrap_iov may be called with a single STREAM
+    * buffer, zero or more SIGN_ONLY buffers, and a single DATA
+    * buffer. The STREAM buffer is interpreted as a complete wrap
+    * token. The STREAM buffer will be modified in-place to decrypt its
+    * contents. The DATA buffer will be initialized to point to the
+    * decrypted data within the STREAM buffer, unless it has the
+    * GSS_C_BUFFER_FLAG_ALLOCATE flag set, in which case it will be
+    * initialized with a copy of the decrypted data.
+    **/</span>
     <span class="kw">fn</span> <span class="ident">unwrap_iov</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">msg</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> [<span class="ident">GssIov</span>]) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">Error</span><span class="op">&gt;</span>;
 
     <span class="doccomment">/// Get all information about a security context in one call</span>
