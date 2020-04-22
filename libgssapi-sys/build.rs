@@ -56,8 +56,8 @@ fn main() {
         .whitelist_var("_?GSS_.+|gss_.+")
         .whitelist_function("gss_.*")
         .header(match imp {
-            Gssapi::Mit => "wrapper_mit.h",
-            Gssapi::Heimdal => "wrapper_heimdal.h",
+            Gssapi::Mit => "src/wrapper_mit.h",
+            Gssapi::Heimdal => "src/wrapper_heimdal.h",
         })
         .generate()
         .expect("failed to generate gssapi bindings");
