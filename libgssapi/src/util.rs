@@ -201,12 +201,10 @@ impl<'a> GssIov<'a> {
     /// it otherwise.
     pub fn header_length(&self, data: &GssIov<'a>) -> Option<usize> {
         match GssIovType::from_c(self.0.type_) {
-            Some(GssIovType::Stream) => unsafe {
-                let base = mem::transmute::<*mut ffi::c_void, usize>(self.0.buffer.value);
-                let data = mem::transmute::<*mut ffi::c_void, usize>(data.0.buffer.value);
-                Some(data - base)
+            Some(GssIovType::Stream) => {
+                Some(data.0.buffer.value as usize - self.0.buffer.value as usize)
             }
-            _ => None
+            _ => None,
         }
     }
 

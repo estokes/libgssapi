@@ -118,15 +118,15 @@ fn wrap_secret_msg_noalloc(ctx: &ClientCtx) -> Result<BytesMut, Error> {
     // carve out a chunk of the buffer for each part. the Bytes
     // library makes this much easier on us.
     let mut header = {
-        buf.extend((0..len_iovs[0].len()).map(|_| 0));
+        buf.resize(len_iovs[0].len(), 0x0);
         buf.split()
     };
     let mut padding = {
-        buf.extend((0..len_iovs[2].len()).map(|_| 0));
+        buf.resize(len_iovs[2].len(), 0x0);
         buf.split()
     };
     let mut trailer = {
-        buf.extend((0..len_iovs[3].len()).map(|_| 0));
+        buf.resize(len_iovs[3].len(), 0x0);
         buf.split()
     };
     {
