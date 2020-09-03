@@ -31,9 +31,9 @@ fn which() -> Gssapi {
             panic!("use SSPI on windows")
         }
     };
-    let mit_pat = "libgssapi_krb5.so*";
-    let heimdal_pat = "libgssapi.so*";
-    let paths = vec!["/lib", "/lib64", "/usr/lib", "/usr/lib64"];
+    let mit_pat = "libgssapi_krb5.*";
+    let heimdal_pat = "libgssapi.*";
+    let paths = vec!["/lib", "/lib64", "/usr/lib", "/usr/lib64", "/usr/local/opt/krb5"];
     for path in ldpath.split(':').chain(paths) {
         if search_pat(path, mit_pat) {
             return Gssapi::Mit;
