@@ -98,19 +98,20 @@ lazy_static! {
 }
 
 /* I've copied lots of OIDs from lots of standards into this module in
-order to make your life easier, and also in order to not have to run
-bindgen on ALL the header files. The standard says implementations
-must put their oids in static memory, and that they much be ber
-encoded, but it doesn't say they can't check equality by pointer
-comparison. MIT Kerberos apparantly isn't that evil, but some other
-implementation might be. So if that happens I guess file a bug. */
+ * order to make your life easier, and also in order to not have to
+ * run bindgen on ALL the header files. The standard says
+ * implementations must put their oids in static memory, and that they
+ * much be ber encoded, but it doesn't say they can't check equality
+ * by pointer comparison. MIT Kerberos apparantly isn't that evil, but
+ * some other implementation might be. So if that happens I guess file
+ * a bug. */
 /// An Oid. Did I mention I hate OIDs.
 #[repr(transparent)]
 #[derive(Clone, Copy)]
 pub struct Oid(gss_OID_desc);
 
 /* OIDs are defined in the standard as const pointers into static
-memory, so this should be safe. */
+ * memory, so this should be safe. */
 unsafe impl Send for Oid {}
 unsafe impl Sync for Oid {}
 

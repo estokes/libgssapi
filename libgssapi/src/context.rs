@@ -16,7 +16,7 @@ use libgssapi_sys::{
     _GSS_C_INDEFINITE, _GSS_S_CONTINUE_NEEDED,
 };
 use parking_lot::Mutex;
-use std::{mem, ptr, sync::Arc, time::Duration};
+use std::{ptr, sync::Arc, time::Duration};
 
 bitflags! {
     pub struct CtxFlags: u32 {
@@ -81,7 +81,7 @@ unsafe fn wrap_iov(
         if encrypt { 1 } else { 0 },
         GSS_C_QOP_DEFAULT,
         ptr::null_mut(),
-        mem::transmute::<*mut GssIov, *mut gss_iov_buffer_desc>(msg.as_mut_ptr()),
+        msg.as_mut_ptr() as *mut gss_iov_buffer_desc,
         msg.len() as i32,
     );
     if major == GSS_S_COMPLETE {
@@ -106,7 +106,7 @@ unsafe fn wrap_iov_length(
         if encrypt { 1 } else { 0 },
         GSS_C_QOP_DEFAULT,
         ptr::null_mut(),
-        mem::transmute::<*mut GssIovFake, *mut gss_iov_buffer_desc>(msg.as_mut_ptr()),
+        msg.as_mut_ptr() as *mut gss_iov_buffer_desc,
         msg.len() as i32,
     );
     if major == GSS_S_COMPLETE {
@@ -148,7 +148,7 @@ unsafe fn unwrap_iov(ctx: gss_ctx_id_t, msg: &mut [GssIov]) -> Result<(), Error>
         ctx,
         ptr::null_mut(),
         ptr::null_mut(),
-        mem::transmute::<*mut GssIov, *mut gss_iov_buffer_desc>(msg.as_mut_ptr()),
+        msg.as_mut_ptr() as *mut gss_iov_buffer_desc,
         msg.len() as i32,
     );
     if major == GSS_S_COMPLETE {
@@ -395,7 +395,7 @@ pub trait SecurityContext {
     > for AEAD.
     >
     > The typical (special cased) usage for DCE is as follows:
-    > 
+    >
     > SIGN_ONLY_1 | DATA | SIGN_ONLY_2 | HEADER
      */
     fn wrap_iov(&self, encrypt: bool, msg: &mut [GssIov]) -> Result<(), Error>;

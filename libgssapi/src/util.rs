@@ -11,15 +11,14 @@ use libgssapi_sys::{
 use std::{
     ffi,
     marker::PhantomData,
-    mem,
     ops::{Deref, DerefMut, Drop},
     ptr, slice,
 };
 
-// This type is dangerous, because we can't force C not to modify the
-// contents of the pointer, and that could have serious
-// consquences. You must use this type ONLY with gssapi functions that
-// will not modify it.
+/* This type is dangerous, because we can't force C not to modify the
+ * contents of the pointer, and that could have serious
+ * consquences. We must use this type ONLY with gssapi functions that
+ * will not modify it. */
 #[repr(transparent)]
 #[derive(Debug)]
 pub(crate) struct BufRef<'a>(gss_buffer_desc_struct, PhantomData<&'a [u8]>);
@@ -39,7 +38,7 @@ impl<'a> From<&'a [u8]> for BufRef<'a> {
     fn from(s: &[u8]) -> Self {
         let gss_buf = gss_buffer_desc_struct {
             length: s.len() as size_t,
-            value: unsafe { mem::transmute::<*const u8, *mut ffi::c_void>(s.as_ptr()) },
+            value: s.as_ptr() as *mut ffi::c_void,
         };
         BufRef(gss_buf, PhantomData)
     }
