@@ -52,7 +52,7 @@ fn main() {
         Gssapi::Mit | Gssapi::Heimdal => builder,
         Gssapi::Apple =>
         //builder.clang_arg("-I/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/System/Library/Frameworks/GSS.framework/Headers")
-            builder.clang_arg("-I/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/System/Library/Frameworks")
+            builder.clang_arg("-F/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/System/Library/Frameworks")
     };
     let bindings = builder
         .whitelist_type("(OM_.+|gss_.+)")
