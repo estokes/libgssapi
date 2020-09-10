@@ -56,7 +56,7 @@ fn main() {
     let bindings = builder
         .whitelist_type("(OM_.+|gss_.+)")
         .whitelist_var("_?GSS_.+|gss_.+")
-        .whitelist_function("gss_.*")
+        .whitelist_function("gss_.*|___ApplePrivate.*")
         .header(match imp {
             Gssapi::Mit => "src/wrapper_mit.h",
             Gssapi::Heimdal => "src/wrapper_heimdal.h",
