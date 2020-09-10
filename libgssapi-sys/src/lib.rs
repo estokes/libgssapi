@@ -4,7 +4,7 @@
 
 include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
 
-#[cfg(target = "macos")]
+#[cfg(target_os = "macos")]
 pub fn gss_wrap_iov(
     arg1: *mut OM_uint32,
     arg2: gss_ctx_id_t,
@@ -17,7 +17,7 @@ pub fn gss_wrap_iov(
     ___ApplePrivate_gss_wrap_iov(arg1, arg2, arg3, arg4, arg5, arg6, arg7)
 }
 
-#[cfg(target = "macos")]
+#[cfg(target_os = "macos")]
 pub fn gss_unwrap_iov(
     arg1: *mut OM_uint32,
     arg2: gss_ctx_id_t,
@@ -29,7 +29,7 @@ pub fn gss_unwrap_iov(
     ___ApplePrivate_gss_unwrap_iov(arg1, arg2, arg3, arg4, arg5, arg6)
 }
 
-#[cfg(target = "macos")]
+#[cfg(target_os = "macos")]
 pub fn gss_wrap_iov_length(
     arg1: *mut OM_uint32,
     arg2: gss_ctx_id_t,
