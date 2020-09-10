@@ -15,42 +15,29 @@ fn search_pat(base: &str, pat: &str) -> bool {
 enum Gssapi {
     Mit,
     Heimdal,
+    Apple,
 }
 
 fn which() -> Gssapi {
-    let (ldpath, mit_pat, heimdal_pat) = {
-        if cfg!(target_os = "macos") {
-            (
-                env::var("DYLD_FALLBACK_LIBRARY_PATH").unwrap(),
-                "libgssapi_krb5.dylib*",
-                "libgssapi.dylib*",
-            )
-        } else if cfg!(target_family = "unix") {
-            (
-                env::var("LD_LIBRARY_PATH").unwrap(),
-                "libgssapi_krb5.so*",
-                "libgssapi.so*",
-            )
-        } else {
-            panic!("use SSPI on windows")
+    if cfg!(target_os = "macos") {
+        return Gssapi::Apple;
+    } else if cfg!(target_os = "windows") {
+        panic!("use SSPI on windows")
+    } else if cfg!(target_family = "unix") {
+        let ldpath = env::var("LD_LIBRARY_PATH").unwrap();
+        let paths = vec!["/lib", "/lib64", "/usr/lib", "/usr/lib64"];
+        for path in ldpath.split(':').chain(paths) {
+            if search_pat(path, "libgssapi_krb5.so*") {
+                return Gssapi::Mit;
+            }
+            if search_pat(path, "libgssapi.so*") {
+                return Gssapi::Heimdal;
+            }
         }
-    };
-    let paths = vec![
-        "/lib",
-        "/lib64",
-        "/usr/lib",
-        "/usr/lib64",
-        "/usr/local/opt/krb5",
-    ];
-    for path in ldpath.split(':').chain(paths) {
-        if search_pat(path, mit_pat) {
-            return Gssapi::Mit;
-        }
-        if search_pat(path, heimdal_pat) {
-            return Gssapi::Heimdal;
-        }
+        panic!("no gssapi implementation found, install mit kerberos or heimdal");
+    } else {
+        panic!("libgssapi isn't ported to this platform yet")
     }
-    panic!("no gssapi implementation found, install mit kerberos or heimdal");
 }
 
 fn main() {
@@ -58,14 +45,21 @@ fn main() {
     match imp {
         Gssapi::Mit => println!("cargo:rustc-link-lib=gssapi_krb5"),
         Gssapi::Heimdal => println!("cargo:rustc-link-lib=gssapi"),
+        Gssapi::Apple => println!("cargo:rustc-link-lib=framework=GSS"),
     }
-    let bindings = bindgen::Builder::default()
+    let builder = bindgen::Builder::default();
+    let builder = match imp {
+        Gssapi::Mit | Gssapi::Heimdal => builder,
+        Gssapi::Apple => builder.clang_arg("-I/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/System/Library/Frameworks/GSS.framework/Headers")
+    };
+    let bindings = builder
         .whitelist_type("(OM_.+|gss_.+)")
         .whitelist_var("_?GSS_.+|gss_.+")
         .whitelist_function("gss_.*")
         .header(match imp {
             Gssapi::Mit => "src/wrapper_mit.h",
             Gssapi::Heimdal => "src/wrapper_heimdal.h",
+            Gssapi::Apple => "src/wrapper_apple.h",
         })
         .generate()
         .expect("failed to generate gssapi bindings");
