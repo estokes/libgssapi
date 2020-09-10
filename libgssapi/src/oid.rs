@@ -14,7 +14,6 @@ use std::{
     fmt,
     hash::{Hash, Hasher},
     iter::{ExactSizeIterator, FromIterator, IntoIterator, Iterator},
-    mem,
     ops::{Deref, Index},
     ptr, slice,
 };
@@ -98,27 +97,20 @@ lazy_static! {
     );
 }
 
-/* this mirrors the C struct, but has a proper const pointer AS
-SPECIFIED in the standard. This ends up being, sadly, the most
-ergonomic way of wrapping the api.
-
-Speaking of horror, here's a horrible thought. I've copied lots of
-OIDs from lots of standards into this module in order to make your
-life easier, and also in order to not have to run bindgen on ALL the
-header files. The standard says implementations must put their oids in
-static memory, and that they much be ber encoded, but it doesn't say
-they can't check equality by pointer comparison. MIT Kerberos
-apparantly isn't that evil, but some other implementation might be. So
-if that happens I guess file a bug.
-*/
+/* I've copied lots of OIDs from lots of standards into this module in
+order to make your life easier, and also in order to not have to run
+bindgen on ALL the header files. The standard says implementations
+must put their oids in static memory, and that they much be ber
+encoded, but it doesn't say they can't check equality by pointer
+comparison. MIT Kerberos apparantly isn't that evil, but some other
+implementation might be. So if that happens I guess file a bug. */
 /// An Oid. Did I mention I hate OIDs.
-#[repr(C)]
+#[repr(transparent)]
 #[derive(Clone, Copy)]
-pub struct Oid {
-    length: u32,
-    elements: *const u8,
-}
+pub struct Oid(gss_OID_desc);
 
+/* OIDs are defined in the standard as const pointers into static
+memory, so this should be safe. */
 unsafe impl Send for Oid {}
 unsafe impl Sync for Oid {}
 
@@ -141,7 +133,9 @@ impl Deref for Oid {
     type Target = [u8];
 
     fn deref(&self) -> &Self::Target {
-        unsafe { slice::from_raw_parts(self.elements, self.length as usize) }
+        unsafe {
+            slice::from_raw_parts(self.0.elements as *const u8, self.0.length as usize)
+        }
     }
 }
 
@@ -176,21 +170,18 @@ impl Hash for Oid {
 
 impl From<gss_OID_desc> for Oid {
     fn from(oid: gss_OID_desc) -> Self {
-        Oid {
-            length: oid.length,
-            elements: unsafe { mem::transmute::<*mut std::ffi::c_void, _>(oid.elements) },
-        }
+        Oid(oid)
     }
 }
 
 impl Oid {
     #[allow(dead_code)]
     pub(crate) unsafe fn from_c<'a>(ptr: gss_OID) -> &'a Oid {
-        &*mem::transmute::<gss_OID, *const Oid>(ptr)
+        &*(ptr as *const Oid)
     }
 
     pub(crate) unsafe fn to_c(&self) -> gss_OID {
-        mem::transmute::<*const Oid, gss_OID>(self as *const Oid)
+        self as *const Oid as gss_OID
     }
 
     /// If you need to use an OID I didn't define, then you must
@@ -200,10 +191,9 @@ impl Oid {
     /// you get the BER wrong something wonderful will happen, I just
     /// can't (won't?) say what.
     pub const fn from_slice(ber: &'static [u8]) -> Oid {
-        Oid {
-            length: ber.len() as u32,
-            elements: ber.as_ptr(),
-        }
+        let length = ber.len() as u32;
+        let elements = ber.as_ptr() as *mut std::ffi::c_void;
+        Oid(gss_OID_desc { length, elements })
     }
 }
 
@@ -263,9 +253,7 @@ impl Index<usize> for OidSet {
     fn index(&self, index: usize) -> &Self::Output {
         let len = self.len();
         if index < len {
-            unsafe {
-                &*mem::transmute::<gss_OID, *mut Oid>((*self.0).elements.add(index))
-            }
+            unsafe { &*((*self.0).elements.add(index) as *const Oid) }
         } else {
             panic!("index {} out of bounds count {}", index, len);
         }
@@ -307,7 +295,7 @@ impl OidSet {
         } else {
             Err(Error {
                 major: unsafe { MajorFlags::from_bits_unchecked(major) },
-                minor
+                minor,
             })
         }
     }
@@ -341,7 +329,7 @@ impl OidSet {
         } else {
             Err(Error {
                 major: unsafe { MajorFlags::from_bits_unchecked(major) },
-                minor
+                minor,
             })
         }
     }
@@ -364,7 +352,7 @@ impl OidSet {
         } else {
             Err(Error {
                 major: unsafe { MajorFlags::from_bits_unchecked(major) },
-                minor
+                minor,
             })
         }
     }
