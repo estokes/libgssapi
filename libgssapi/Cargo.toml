@@ -1,6 +1,6 @@
 [package]
 name = "libgssapi"
-version = "0.4.1"
+version = "0.4.2"
 authors = ["Eric Stokes <letaris@gmail.com>"]
 edition = "2018"
 license = "MIT"
@@ -11,9 +11,13 @@ repository = "https://github.com/estokes/libgssapi"
 keywords = ["gssapi", "sspi", "kerberos", "krb5", "authentication"]
 categories = ["api-bindings", "authentication", "cryptography", "os::unix-apis"]
 
+[features]
+default = ["iov"]
+iov = []
+
 [dependencies]
 bytes = "0.5"
-libgssapi-sys = "0.2.1"
-parking_lot = "0.10"
+libgssapi-sys = { path = "../libgssapi-sys" } #"0.2.2"
+parking_lot = "0.11"
 bitflags = "1.2"
 lazy_static = "1.4"

@@ -1,19 +1,24 @@
+#[cfg(feature = "iov")]
+use crate::util::{GssIov, GssIovFake};
 use crate::{
     credential::Cred,
     error::{gss_error, Error, MajorFlags},
     name::Name,
     oid::{Oid, NO_OID},
-    util::{Buf, BufRef, GssIov, GssIovFake},
+    util::{Buf, BufRef},
 };
 use libgssapi_sys::{
     gss_OID, gss_accept_sec_context, gss_buffer_desc, gss_channel_bindings_struct,
     gss_cred_id_struct, gss_cred_id_t, gss_ctx_id_t, gss_delete_sec_context,
-    gss_init_sec_context, gss_inquire_context, gss_iov_buffer_desc, gss_name_t,
-    gss_unwrap, gss_unwrap_iov, gss_wrap, gss_wrap_iov, gss_wrap_iov_length, OM_uint32,
-    GSS_C_ANON_FLAG, GSS_C_CONF_FLAG, GSS_C_DELEG_FLAG, GSS_C_DELEG_POLICY_FLAG,
-    GSS_C_INTEG_FLAG, GSS_C_MUTUAL_FLAG, GSS_C_PROT_READY_FLAG, GSS_C_QOP_DEFAULT,
-    GSS_C_REPLAY_FLAG, GSS_C_SEQUENCE_FLAG, GSS_C_TRANS_FLAG, GSS_S_COMPLETE,
-    _GSS_C_INDEFINITE, _GSS_S_CONTINUE_NEEDED,
+    gss_init_sec_context, gss_inquire_context, gss_name_t, gss_unwrap, gss_wrap,
+    OM_uint32, GSS_C_ANON_FLAG, GSS_C_CONF_FLAG, GSS_C_DELEG_FLAG,
+    GSS_C_DELEG_POLICY_FLAG, GSS_C_INTEG_FLAG, GSS_C_MUTUAL_FLAG, GSS_C_PROT_READY_FLAG,
+    GSS_C_QOP_DEFAULT, GSS_C_REPLAY_FLAG, GSS_C_SEQUENCE_FLAG, GSS_C_TRANS_FLAG,
+    GSS_S_COMPLETE, _GSS_C_INDEFINITE, _GSS_S_CONTINUE_NEEDED,
+};
+#[cfg(feature = "iov")]
+use libgssapi_sys::{
+    gss_iov_buffer_desc, gss_unwrap_iov, gss_wrap_iov, gss_wrap_iov_length,
 };
 use parking_lot::Mutex;
 use std::{ptr, sync::Arc, time::Duration};
@@ -69,6 +74,7 @@ unsafe fn wrap(ctx: gss_ctx_id_t, encrypt: bool, msg: &[u8]) -> Result<Buf, Erro
     }
 }
 
+#[cfg(feature = "iov")]
 unsafe fn wrap_iov(
     ctx: gss_ctx_id_t,
     encrypt: bool,
@@ -94,6 +100,7 @@ unsafe fn wrap_iov(
     }
 }
 
+#[cfg(feature = "iov")]
 unsafe fn wrap_iov_length(
     ctx: gss_ctx_id_t,
     encrypt: bool,
@@ -141,6 +148,7 @@ unsafe fn unwrap(ctx: gss_ctx_id_t, msg: &[u8]) -> Result<Buf, Error> {
     }
 }
 
+#[cfg(feature = "iov")]
 unsafe fn unwrap_iov(ctx: gss_ctx_id_t, msg: &mut [GssIov]) -> Result<(), Error> {
     let mut minor = GSS_S_COMPLETE;
     let major = gss_unwrap_iov(
@@ -398,12 +406,14 @@ pub trait SecurityContext {
     >
     > SIGN_ONLY_1 | DATA | SIGN_ONLY_2 | HEADER
      */
+    #[cfg(feature = "iov")]
     fn wrap_iov(&self, encrypt: bool, msg: &mut [GssIov]) -> Result<(), Error>;
 
     /// This will set the required length of all the buffers except
     /// the data buffer, which must be provided as it will be to
     /// wrap_iov. The value of the encrypt flag must match what you
     /// pass to `wrap_iov`.
+    #[cfg(feature = "iov")]
     fn wrap_iov_length(&self, encrypt: bool, msg: &mut [GssIovFake])
         -> Result<(), Error>;
 
@@ -427,6 +437,7 @@ pub trait SecurityContext {
     > GSS_C_BUFFER_FLAG_ALLOCATE flag set, in which case it will be
     > initialized with a copy of the decrypted data.
     */
+    #[cfg(feature = "iov")]
     fn unwrap_iov(&self, msg: &mut [GssIov]) -> Result<(), Error>;
 
     /// Get all information about a security context in one call
@@ -494,7 +505,7 @@ impl ServerCtx {
     pub fn new(cred: Cred) -> ServerCtx {
         ServerCtx(Arc::new(Mutex::new(ServerCtxInner {
             ctx: ptr::null_mut(),
-            cred: cred,
+            cred,
             delegated_cred: None,
             flags: CtxFlags::empty(),
             state: ServerCtxState::Uninitialized,
@@ -576,11 +587,13 @@ impl SecurityContext for ServerCtx {
         unsafe { wrap(inner.ctx, encrypt, msg) }
     }
 
+    #[cfg(feature = "iov")]
     fn wrap_iov(&self, encrypt: bool, msg: &mut [GssIov]) -> Result<(), Error> {
         let inner = self.0.lock();
         unsafe { wrap_iov(inner.ctx, encrypt, msg) }
     }
 
+    #[cfg(feature = "iov")]
     fn wrap_iov_length(
         &self,
         encrypt: bool,
@@ -595,6 +608,7 @@ impl SecurityContext for ServerCtx {
         unsafe { unwrap(inner.ctx, msg) }
     }
 
+    #[cfg(feature = "iov")]
     fn unwrap_iov(&self, msg: &mut [GssIov]) -> Result<(), Error> {
         let inner = self.0.lock();
         unsafe { unwrap_iov(inner.ctx, msg) }
@@ -688,8 +702,8 @@ impl ClientCtx {
     ) -> ClientCtx {
         let inner = ClientCtxInner {
             ctx: ptr::null_mut(),
-            cred: cred,
-            target: target,
+            cred,
+            target,
             flags,
             state: ClientCtxState::Uninitialized,
             mech,
@@ -765,11 +779,13 @@ impl SecurityContext for ClientCtx {
         unsafe { wrap(inner.ctx, encrypt, msg) }
     }
 
+    #[cfg(feature = "iov")]
     fn wrap_iov(&self, encrypt: bool, msg: &mut [GssIov]) -> Result<(), Error> {
         let inner = self.0.lock();
         unsafe { wrap_iov(inner.ctx, encrypt, msg) }
     }
 
+    #[cfg(feature = "iov")]
     fn wrap_iov_length(
         &self,
         encrypt: bool,
@@ -784,6 +800,7 @@ impl SecurityContext for ClientCtx {
         unsafe { unwrap(inner.ctx, msg) }
     }
 
+    #[cfg(feature = "iov")]
     fn unwrap_iov(&self, msg: &mut [GssIov]) -> Result<(), Error> {
         let inner = self.0.lock();
         unsafe { unwrap_iov(inner.ctx, msg) }

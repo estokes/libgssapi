@@ -1,0 +1,5 @@
+0.4.2:
+
+- improve safety, remove all transmutes
+- port to macos using native GSS framework
+- seperate gss_iov_* functions into a feature (on by default), as they are not supported on macos
