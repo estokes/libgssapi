@@ -17,7 +17,7 @@ iov = []
 
 [dependencies]
 bytes = "0.5"
-libgssapi-sys = { path = "../libgssapi-sys" } #"0.2.2"
+libgssapi-sys = "0.2.2"
 parking_lot = "0.11"
 bitflags = "1.2"
 lazy_static = "1.4"
