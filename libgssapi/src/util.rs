@@ -287,7 +287,7 @@ impl bytes::Buf for GssBytes {
         self.buf.0.length as usize - self.pos
     }
 
-    fn bytes(&self) -> &[u8] {
+    fn chunk(&self) -> &[u8] {
         &((*self.buf)[self.pos..])
     }
 
