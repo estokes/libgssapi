@@ -37,7 +37,7 @@ fn which() -> Gssapi {
 
         let krb5_path = krb5_path.as_ref().map(|s| s.trim());
 
-        for path in ldpath.split(':').chain(paths).chain(krb5_path) {
+        for path in krb5_path.into_iter().chain(ldpath.split(':')).chain(paths) {
             if search_pat(path, "libgssapi_krb5.so*") {
                 return Gssapi::Mit;
             }
