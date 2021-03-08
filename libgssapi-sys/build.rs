@@ -26,7 +26,18 @@ fn which() -> Gssapi {
     } else if cfg!(target_family = "unix") {
         let ldpath = env::var("LD_LIBRARY_PATH").unwrap();
         let paths = vec!["/lib", "/lib64", "/usr/lib", "/usr/lib64"];
-        for path in ldpath.split(':').chain(paths) {
+
+        let krb5_path = Command::new("krb5-config")
+            .arg("--prefix")
+            .arg("gssapi")
+            .output()
+            .map(|o| o.stdout)
+            .ok()
+            .and_then(|bytes| String::from_utf8(bytes).ok());
+
+        let krb5_path = krb5_path.as_ref().map(|s| s.trim());
+
+        for path in ldpath.split(':').chain(paths).chain(krb5_path) {
             if search_pat(path, "libgssapi_krb5.so*") {
                 return Gssapi::Mit;
             }
@@ -48,8 +59,12 @@ fn main() {
         Gssapi::Apple => println!("cargo:rustc-link-lib=framework=GSS"),
     }
     let builder = bindgen::Builder::default();
+    let nix_cflags = env::var("NIX_CFLAGS_COMPILE");
     let builder = match imp {
-        Gssapi::Mit | Gssapi::Heimdal => builder,
+        Gssapi::Mit | Gssapi::Heimdal => match nix_cflags {
+            Err(_) => builder,
+            Ok(flags) => builder.clang_args(flags.split(" ")),
+        },
         Gssapi::Apple =>
             builder.clang_arg("-F/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/System/Library/Frameworks")
     };
