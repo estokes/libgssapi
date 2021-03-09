@@ -1,6 +1,6 @@
 [package]
 name = "libgssapi"
-version = "0.4.4"
+version = "0.4.5"
 authors = ["Eric Stokes <letaris@gmail.com>"]
 edition = "2018"
 license = "MIT"
@@ -18,7 +18,7 @@ iov = []
 
 [dependencies]
 bytes = "1"
-libgssapi-sys = "0.2.2"
+libgssapi-sys = "0.2.3"
 parking_lot = "0.11"
 bitflags = "1.2"
 lazy_static = "1.4"
