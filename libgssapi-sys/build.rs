@@ -26,7 +26,6 @@ fn which() -> Gssapi {
     } else if cfg!(target_family = "unix") {
         let ldpath = env::var("LD_LIBRARY_PATH").unwrap();
         let paths = vec!["/lib", "/lib64", "/usr/lib", "/usr/lib64"];
-
         let krb5_path = Command::new("krb5-config")
             .arg("--prefix")
             .arg("gssapi")
@@ -34,9 +33,7 @@ fn which() -> Gssapi {
             .map(|o| o.stdout)
             .ok()
             .and_then(|bytes| String::from_utf8(bytes).ok());
-
         let krb5_path = krb5_path.as_ref().map(|s| s.trim());
-
         for path in krb5_path.into_iter().chain(ldpath.split(':')).chain(paths) {
             if search_pat(path, "libgssapi_krb5.so*") {
                 return Gssapi::Mit;
@@ -71,7 +68,7 @@ fn main() {
     let bindings = builder
         .whitelist_type("(OM_.+|gss_.+)")
         .whitelist_var("_?GSS_.+|gss_.+")
-        .whitelist_function("gss_.*|__ApplePrivate.*")
+        .whitelist_function("gss_.*")
         .header(match imp {
             Gssapi::Mit => "src/wrapper_mit.h",
             Gssapi::Heimdal => "src/wrapper_heimdal.h",
