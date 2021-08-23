@@ -24,7 +24,7 @@ fn which() -> Gssapi {
     } else if cfg!(target_os = "windows") {
         panic!("use SSPI on windows")
     } else if cfg!(target_family = "unix") {
-        let ldpath = env::var("LD_LIBRARY_PATH").unwrap();
+        let ldpath = env::var("LD_LIBRARY_PATH").unwrap_or_default();
         let paths = vec!["/lib", "/lib64", "/usr/lib", "/usr/lib64"];
         for path in ldpath.split(':').chain(paths) {
             if search_pat(path, "libgssapi_krb5.so*") {
