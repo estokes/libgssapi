@@ -24,7 +24,7 @@ fn which() -> Gssapi {
     } else if cfg!(target_os = "windows") {
         panic!("use SSPI on windows")
     } else if cfg!(target_family = "unix") {
-        let ldpath = env::var("LD_LIBRARY_PATH").unwrap();
+        let ldpath = env::var("LD_LIBRARY_PATH").unwrap_or(String::new());
         let paths = vec!["/lib", "/lib64", "/usr/lib", "/usr/lib64"];
         let krb5_path = Command::new("krb5-config")
             .arg("--prefix")
@@ -35,11 +35,13 @@ fn which() -> Gssapi {
             .and_then(|bytes| String::from_utf8(bytes).ok());
         let krb5_path = krb5_path.as_ref().map(|s| s.trim());
         for path in krb5_path.into_iter().chain(ldpath.split(':')).chain(paths) {
-            if search_pat(path, "libgssapi_krb5.so*") {
-                return Gssapi::Mit;
-            }
-            if search_pat(path, "libgssapi.so*") {
-                return Gssapi::Heimdal;
+            if !path.is_empty() {
+                if search_pat(path, "libgssapi_krb5.so*") {
+                    return Gssapi::Mit;
+                }
+                if search_pat(path, "libgssapi.so*") {
+                    return Gssapi::Heimdal;
+                }
             }
         }
         panic!("no gssapi implementation found, install mit kerberos or heimdal");
