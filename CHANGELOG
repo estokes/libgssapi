@@ -1,3 +1,7 @@
+0.4.6 and 0.2.4
+- fix build with no LD_LIBRARY_PATH
+- upgrade to the latest bindgen
+
 0.4.5 and 0.2.3
 - fix build on nixos
 - use krb5-config to find libgssapi when available

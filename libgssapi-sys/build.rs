@@ -68,9 +68,9 @@ fn main() {
             builder.clang_arg("-F/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/System/Library/Frameworks")
     };
     let bindings = builder
-        .whitelist_type("(OM_.+|gss_.+)")
-        .whitelist_var("_?GSS_.+|gss_.+")
-        .whitelist_function("gss_.*")
+        .allowlist_type("(OM_.+|gss_.+)")
+        .allowlist_var("_?GSS_.+|gss_.+")
+        .allowlist_function("gss_.*")
         .header(match imp {
             Gssapi::Mit => "src/wrapper_mit.h",
             Gssapi::Heimdal => "src/wrapper_heimdal.h",
