@@ -20,8 +20,7 @@ use libgssapi_sys::{
 use libgssapi_sys::{
     gss_iov_buffer_desc, gss_unwrap_iov, gss_wrap_iov, gss_wrap_iov_length,
 };
-use parking_lot::Mutex;
-use std::{ptr, sync::Arc, time::Duration};
+use std::{ptr,  time::Duration};
 
 bitflags! {
     pub struct CtxFlags: u32 {
@@ -361,7 +360,7 @@ pub trait SecurityContext {
     /// then only the other side of the context can read the
     /// message. In any case the other side can always verify message
     /// integrity.
-    fn wrap(&self, encrypt: bool, msg: &[u8]) -> Result<Buf, Error>;
+    fn wrap(&mut self, encrypt: bool, msg: &[u8]) -> Result<Buf, Error>;
 
     /** From the MIT kerberos documentation,
 
@@ -407,19 +406,22 @@ pub trait SecurityContext {
     > SIGN_ONLY_1 | DATA | SIGN_ONLY_2 | HEADER
      */
     #[cfg(feature = "iov")]
-    fn wrap_iov(&self, encrypt: bool, msg: &mut [GssIov]) -> Result<(), Error>;
+    fn wrap_iov(&mut self, encrypt: bool, msg: &mut [GssIov]) -> Result<(), Error>;
 
     /// This will set the required length of all the buffers except
     /// the data buffer, which must be provided as it will be to
     /// wrap_iov. The value of the encrypt flag must match what you
     /// pass to `wrap_iov`.
     #[cfg(feature = "iov")]
-    fn wrap_iov_length(&self, encrypt: bool, msg: &mut [GssIovFake])
-        -> Result<(), Error>;
+    fn wrap_iov_length(
+        &mut self,
+        encrypt: bool,
+        msg: &mut [GssIovFake],
+    ) -> Result<(), Error>;
 
     /// Unwrap a wrapped message, checking it's integrity and
     /// decrypting it if necessary.
-    fn unwrap(&self, msg: &[u8]) -> Result<Buf, Error>;
+    fn unwrap(&mut self, msg: &[u8]) -> Result<Buf, Error>;
 
     /** From the MIT Kerberos documentation,
 
@@ -438,31 +440,31 @@ pub trait SecurityContext {
     > initialized with a copy of the decrypted data.
     */
     #[cfg(feature = "iov")]
-    fn unwrap_iov(&self, msg: &mut [GssIov]) -> Result<(), Error>;
+    fn unwrap_iov(&mut self, msg: &mut [GssIov]) -> Result<(), Error>;
 
     /// Get all information about a security context in one call
-    fn info(&self) -> Result<CtxInfo, Error>;
+    fn info(&mut self) -> Result<CtxInfo, Error>;
 
     /// Get the source name of the security context
-    fn source_name(&self) -> Result<Name, Error>;
+    fn source_name(&mut self) -> Result<Name, Error>;
 
     /// Get the target name of the security context
-    fn target_name(&self) -> Result<Name, Error>;
+    fn target_name(&mut self) -> Result<Name, Error>;
 
     /// Get the lifetime of the security context
-    fn lifetime(&self) -> Result<Duration, Error>;
+    fn lifetime(&mut self) -> Result<Duration, Error>;
 
     /// Get the mechanism of the security context
-    fn mechanism(&self) -> Result<&'static Oid, Error>;
+    fn mechanism(&mut self) -> Result<&'static Oid, Error>;
 
     /// Get the flags of the security context
-    fn flags(&self) -> Result<CtxFlags, Error>;
+    fn flags(&mut self) -> Result<CtxFlags, Error>;
 
     /// Return true if the security context was locally initiated
-    fn local(&self) -> Result<bool, Error>;
+    fn local(&mut self) -> Result<bool, Error>;
 
     /// Return true if the security context is open
-    fn open(&self) -> Result<bool, Error>;
+    fn open(&mut self) -> Result<bool, Error>;
 }
 
 #[derive(Debug)]
@@ -473,8 +475,9 @@ enum ServerCtxState {
     Complete,
 }
 
+/// The server side of a security context
 #[derive(Debug)]
-struct ServerCtxInner {
+pub struct ServerCtx {
     ctx: gss_ctx_id_t,
     cred: Cred,
     delegated_cred: Option<Cred>,
@@ -482,20 +485,14 @@ struct ServerCtxInner {
     state: ServerCtxState,
 }
 
-impl Drop for ServerCtxInner {
+impl Drop for ServerCtx {
     fn drop(&mut self) {
         delete_ctx(self.ctx);
     }
 }
 
-unsafe impl Send for ServerCtxInner {}
-unsafe impl Sync for ServerCtxInner {}
-
-/// The server side of a security context. Contexts are wrapped in and
-/// Arc<Mutex<_>> internally, so clones work and you can use them
-/// safely from other threads.
-#[derive(Debug, Clone)]
-pub struct ServerCtx(Arc<Mutex<ServerCtxInner>>);
+unsafe impl Send for ServerCtx {}
+unsafe impl Sync for ServerCtx {}
 
 impl ServerCtx {
     /// Create a new uninitialized server context with the specified
@@ -503,13 +500,13 @@ impl ServerCtx {
     /// fully initialized. The mechanism is not specified because it
     /// is dictated by the client.
     pub fn new(cred: Cred) -> ServerCtx {
-        ServerCtx(Arc::new(Mutex::new(ServerCtxInner {
+        ServerCtx {
             ctx: ptr::null_mut(),
             cred,
             delegated_cred: None,
             flags: CtxFlags::empty(),
             state: ServerCtxState::Uninitialized,
-        })))
+        }
     }
 
     /// Perform 1 step in the initialization of the server context,
@@ -518,9 +515,8 @@ impl ServerCtx {
     /// server then this will return Ok(None). Otherwise it will
     /// return a token that needs to be sent to the client and fed to
     /// `ClientCtx::step`.
-    pub fn step(&self, tok: &[u8]) -> Result<Option<Buf>, Error> {
-        let mut inner = self.0.lock();
-        match inner.state {
+    pub fn step(&mut self, tok: &[u8]) -> Result<Option<Buf>, Error> {
+        match self.state {
             ServerCtxState::Uninitialized | ServerCtxState::Partial => (),
             ServerCtxState::Failed(e) => return Err(e),
             ServerCtxState::Complete => return Ok(None),
@@ -533,8 +529,8 @@ impl ServerCtx {
         let major = unsafe {
             gss_accept_sec_context(
                 &mut minor as *mut OM_uint32,
-                &mut inner.ctx as *mut gss_ctx_id_t,
-                inner.cred.to_c(),
+                &mut self.ctx as *mut gss_ctx_id_t,
+                self.cred.to_c(),
                 tok.to_c(),
                 ptr::null_mut::<gss_channel_bindings_struct>(),
                 ptr::null_mut::<gss_name_t>(),
@@ -546,32 +542,32 @@ impl ServerCtx {
             )
         };
         if !delegated_cred.is_null() {
-            match &inner.delegated_cred {
+            match &self.delegated_cred {
                 None => unsafe {
-                    inner.delegated_cred = Some(Cred::from_c(delegated_cred));
+                    self.delegated_cred = Some(Cred::from_c(delegated_cred));
                 },
                 Some(current) => unsafe {
                     if current.to_c() != delegated_cred {
-                        inner.delegated_cred = Some(Cred::from_c(delegated_cred));
+                        self.delegated_cred = Some(Cred::from_c(delegated_cred));
                     }
                 },
             }
         }
         if let Some(new_flags) = CtxFlags::from_bits(flag_bits) {
-            inner.flags.insert(new_flags);
+            self.flags.insert(new_flags);
         }
         if gss_error(major) > 0 {
             let e = Error {
                 major: unsafe { MajorFlags::from_bits_unchecked(major) },
                 minor,
             };
-            inner.state = ServerCtxState::Failed(e);
+            self.state = ServerCtxState::Failed(e);
             Err(e)
         } else if major & _GSS_S_CONTINUE_NEEDED > 0 {
-            inner.state = ServerCtxState::Partial;
+            self.state = ServerCtxState::Partial;
             Ok(Some(out_tok))
         } else {
-            inner.state = ServerCtxState::Complete;
+            self.state = ServerCtxState::Complete;
             if out_tok.len() > 0 {
                 Ok(Some(out_tok))
             } else {
@@ -582,76 +578,63 @@ impl ServerCtx {
 }
 
 impl SecurityContext for ServerCtx {
-    fn wrap(&self, encrypt: bool, msg: &[u8]) -> Result<Buf, Error> {
-        let inner = self.0.lock();
-        unsafe { wrap(inner.ctx, encrypt, msg) }
+    fn wrap(&mut self, encrypt: bool, msg: &[u8]) -> Result<Buf, Error> {
+        unsafe { wrap(self.ctx, encrypt, msg) }
     }
 
     #[cfg(feature = "iov")]
-    fn wrap_iov(&self, encrypt: bool, msg: &mut [GssIov]) -> Result<(), Error> {
-        let inner = self.0.lock();
-        unsafe { wrap_iov(inner.ctx, encrypt, msg) }
+    fn wrap_iov(&mut self, encrypt: bool, msg: &mut [GssIov]) -> Result<(), Error> {
+        unsafe { wrap_iov(self.ctx, encrypt, msg) }
     }
 
     #[cfg(feature = "iov")]
     fn wrap_iov_length(
-        &self,
+        &mut self,
         encrypt: bool,
         msg: &mut [GssIovFake],
     ) -> Result<(), Error> {
-        let inner = self.0.lock();
-        unsafe { wrap_iov_length(inner.ctx, encrypt, msg) }
+        unsafe { wrap_iov_length(self.ctx, encrypt, msg) }
     }
 
-    fn unwrap(&self, msg: &[u8]) -> Result<Buf, Error> {
-        let inner = self.0.lock();
-        unsafe { unwrap(inner.ctx, msg) }
+    fn unwrap(&mut self, msg: &[u8]) -> Result<Buf, Error> {
+        unsafe { unwrap(self.ctx, msg) }
     }
 
     #[cfg(feature = "iov")]
-    fn unwrap_iov(&self, msg: &mut [GssIov]) -> Result<(), Error> {
-        let inner = self.0.lock();
-        unsafe { unwrap_iov(inner.ctx, msg) }
+    fn unwrap_iov(&mut self, msg: &mut [GssIov]) -> Result<(), Error> {
+        unsafe { unwrap_iov(self.ctx, msg) }
     }
 
-    fn info(&self) -> Result<CtxInfo, Error> {
-        let inner = self.0.lock();
-        unsafe { full_info(inner.ctx) }
+    fn info(&mut self) -> Result<CtxInfo, Error> {
+        unsafe { full_info(self.ctx) }
     }
 
-    fn source_name(&self) -> Result<Name, Error> {
-        let inner = self.0.lock();
-        unsafe { source_name(inner.ctx) }
+    fn source_name(&mut self) -> Result<Name, Error> {
+        unsafe { source_name(self.ctx) }
     }
 
-    fn target_name(&self) -> Result<Name, Error> {
-        let inner = self.0.lock();
-        unsafe { target_name(inner.ctx) }
+    fn target_name(&mut self) -> Result<Name, Error> {
+        unsafe { target_name(self.ctx) }
     }
 
-    fn lifetime(&self) -> Result<Duration, Error> {
-        let inner = self.0.lock();
-        unsafe { lifetime(inner.ctx) }
+    fn lifetime(&mut self) -> Result<Duration, Error> {
+        unsafe { lifetime(self.ctx) }
     }
 
-    fn mechanism(&self) -> Result<&'static Oid, Error> {
-        let inner = self.0.lock();
-        unsafe { mechanism(inner.ctx) }
+    fn mechanism(&mut self) -> Result<&'static Oid, Error> {
+        unsafe { mechanism(self.ctx) }
     }
 
-    fn flags(&self) -> Result<CtxFlags, Error> {
-        let inner = self.0.lock();
-        unsafe { flags(inner.ctx) }
+    fn flags(&mut self) -> Result<CtxFlags, Error> {
+        unsafe { flags(self.ctx) }
     }
 
-    fn local(&self) -> Result<bool, Error> {
-        let inner = self.0.lock();
-        unsafe { local(inner.ctx) }
+    fn local(&mut self) -> Result<bool, Error> {
+        unsafe { local(self.ctx) }
     }
 
-    fn open(&self) -> Result<bool, Error> {
-        let inner = self.0.lock();
-        unsafe { open(inner.ctx) }
+    fn open(&mut self) -> Result<bool, Error> {
+        unsafe { open(self.ctx) }
     }
 }
 
@@ -663,8 +646,9 @@ enum ClientCtxState {
     Complete,
 }
 
+/// The client side of a security context
 #[derive(Debug)]
-struct ClientCtxInner {
+pub struct ClientCtx {
     ctx: gss_ctx_id_t,
     cred: Cred,
     target: Name,
@@ -673,20 +657,14 @@ struct ClientCtxInner {
     mech: Option<&'static Oid>,
 }
 
-impl Drop for ClientCtxInner {
+impl Drop for ClientCtx {
     fn drop(&mut self) {
         delete_ctx(self.ctx);
     }
 }
 
-unsafe impl Send for ClientCtxInner {}
-unsafe impl Sync for ClientCtxInner {}
-
-/// The client side of a security context. Contexts are wrapped in and
-/// Arc<Mutex<_>> internally, so clones work and you can use them
-/// safely from other threads.
-#[derive(Debug, Clone)]
-pub struct ClientCtx(Arc<Mutex<ClientCtxInner>>);
+unsafe impl Send for ClientCtx {}
+unsafe impl Sync for ClientCtx {}
 
 impl ClientCtx {
     /// Create a new uninitialized client security context using the
@@ -700,15 +678,14 @@ impl ClientCtx {
         flags: CtxFlags,
         mech: Option<&'static Oid>,
     ) -> ClientCtx {
-        let inner = ClientCtxInner {
+        ClientCtx {
             ctx: ptr::null_mut(),
             cred,
             target,
             flags,
             state: ClientCtxState::Uninitialized,
             mech,
-        };
-        ClientCtx(Arc::new(Mutex::new(inner)))
+        }
     }
 
     /// Perform 1 step in the initialization of the specfied security
@@ -719,9 +696,8 @@ impl ClientCtx {
     /// to send to the server. This will go on a mechanism specifiec
     /// number of times until step returns `Ok(None)`. At that point
     /// the context is fully initialized.
-    pub fn step(&self, tok: Option<&[u8]>) -> Result<Option<Buf>, Error> {
-        let mut inner = self.0.lock();
-        match inner.state {
+    pub fn step(&mut self, tok: Option<&[u8]>) -> Result<Option<Buf>, Error> {
+        match self.state {
             ClientCtxState::Uninitialized | ClientCtxState::Partial => (),
             ClientCtxState::Failed(e) => return Err(e),
             ClientCtxState::Complete => return Ok(None),
@@ -732,14 +708,14 @@ impl ClientCtx {
         let major = unsafe {
             gss_init_sec_context(
                 &mut minor as *mut OM_uint32,
-                inner.cred.to_c(),
-                &mut inner.ctx as *mut gss_ctx_id_t,
-                inner.target.to_c(),
-                match inner.mech {
+                self.cred.to_c(),
+                &mut self.ctx as *mut gss_ctx_id_t,
+                self.target.to_c(),
+                match self.mech {
                     None => NO_OID,
                     Some(mech) => mech.to_c(),
                 },
-                inner.flags.bits(),
+                self.flags.bits(),
                 _GSS_C_INDEFINITE,
                 ptr::null_mut::<gss_channel_bindings_struct>(),
                 match tok {
@@ -757,13 +733,13 @@ impl ClientCtx {
                 major: unsafe { MajorFlags::from_bits_unchecked(major) },
                 minor,
             };
-            inner.state = ClientCtxState::Failed(e);
+            self.state = ClientCtxState::Failed(e);
             Err(e)
         } else if major & _GSS_S_CONTINUE_NEEDED > 0 {
-            inner.state = ClientCtxState::Partial;
+            self.state = ClientCtxState::Partial;
             Ok(Some(out_tok))
         } else {
-            inner.state = ClientCtxState::Complete;
+            self.state = ClientCtxState::Complete;
             if out_tok.len() > 0 {
                 Ok(Some(out_tok))
             } else {
@@ -774,75 +750,62 @@ impl ClientCtx {
 }
 
 impl SecurityContext for ClientCtx {
-    fn wrap(&self, encrypt: bool, msg: &[u8]) -> Result<Buf, Error> {
-        let inner = self.0.lock();
-        unsafe { wrap(inner.ctx, encrypt, msg) }
+    fn wrap(&mut self, encrypt: bool, msg: &[u8]) -> Result<Buf, Error> {
+        unsafe { wrap(self.ctx, encrypt, msg) }
     }
 
     #[cfg(feature = "iov")]
-    fn wrap_iov(&self, encrypt: bool, msg: &mut [GssIov]) -> Result<(), Error> {
-        let inner = self.0.lock();
-        unsafe { wrap_iov(inner.ctx, encrypt, msg) }
+    fn wrap_iov(&mut self, encrypt: bool, msg: &mut [GssIov]) -> Result<(), Error> {
+        unsafe { wrap_iov(self.ctx, encrypt, msg) }
     }
 
     #[cfg(feature = "iov")]
     fn wrap_iov_length(
-        &self,
+        &mut self,
         encrypt: bool,
         msg: &mut [GssIovFake],
     ) -> Result<(), Error> {
-        let inner = self.0.lock();
-        unsafe { wrap_iov_length(inner.ctx, encrypt, msg) }
+        unsafe { wrap_iov_length(self.ctx, encrypt, msg) }
     }
 
-    fn unwrap(&self, msg: &[u8]) -> Result<Buf, Error> {
-        let inner = self.0.lock();
-        unsafe { unwrap(inner.ctx, msg) }
+    fn unwrap(&mut self, msg: &[u8]) -> Result<Buf, Error> {
+        unsafe { unwrap(self.ctx, msg) }
     }
 
     #[cfg(feature = "iov")]
-    fn unwrap_iov(&self, msg: &mut [GssIov]) -> Result<(), Error> {
-        let inner = self.0.lock();
-        unsafe { unwrap_iov(inner.ctx, msg) }
+    fn unwrap_iov(&mut self, msg: &mut [GssIov]) -> Result<(), Error> {
+        unsafe { unwrap_iov(self.ctx, msg) }
     }
 
-    fn info(&self) -> Result<CtxInfo, Error> {
-        let inner = self.0.lock();
-        unsafe { full_info(inner.ctx) }
+    fn info(&mut self) -> Result<CtxInfo, Error> {
+        unsafe { full_info(self.ctx) }
     }
 
-    fn source_name(&self) -> Result<Name, Error> {
-        let inner = self.0.lock();
-        unsafe { source_name(inner.ctx) }
+    fn source_name(&mut self) -> Result<Name, Error> {
+        unsafe { source_name(self.ctx) }
     }
 
-    fn target_name(&self) -> Result<Name, Error> {
-        let inner = self.0.lock();
-        unsafe { target_name(inner.ctx) }
+    fn target_name(&mut self) -> Result<Name, Error> {
+        unsafe { target_name(self.ctx) }
     }
 
-    fn lifetime(&self) -> Result<Duration, Error> {
-        let inner = self.0.lock();
-        unsafe { lifetime(inner.ctx) }
+    fn lifetime(&mut self) -> Result<Duration, Error> {
+        unsafe { lifetime(self.ctx) }
     }
 
-    fn mechanism(&self) -> Result<&'static Oid, Error> {
-        let inner = self.0.lock();
-        unsafe { mechanism(inner.ctx) }
+    fn mechanism(&mut self) -> Result<&'static Oid, Error> {
+        unsafe { mechanism(self.ctx) }
     }
 
-    fn flags(&self) -> Result<CtxFlags, Error> {
-        let inner = self.0.lock();
-        unsafe { flags(inner.ctx) }
+    fn flags(&mut self) -> Result<CtxFlags, Error> {
+        unsafe { flags(self.ctx) }
     }
 
-    fn local(&self) -> Result<bool, Error> {
-        let inner = self.0.lock();
-        unsafe { local(inner.ctx) }
+    fn local(&mut self) -> Result<bool, Error> {
+        unsafe { local(self.ctx) }
     }
 
-    fn open(&self) -> Result<bool, Error> {
-        let inner = self.0.lock();
-        unsafe { open(inner.ctx) }
+    fn open(&mut self) -> Result<bool, Error> {
+        unsafe { open(self.ctx) }
     }
 }
