@@ -1,3 +1,11 @@
+0.5.0
+- Remove locking and arc wrappers from context. There is no good
+  reason to have them, and they remove the user's choice of
+  locking. Now contexts can't be cloned, and all api calls require a
+  mutable reference, which enforces the same invariants as before. If
+  you want the old behavior, simply wrap the client and/or server
+  context in an Arc<Mutex<t>>. Sorry for any churn this may cause.
+
 0.4.6 and 0.2.4
 - fix build with no LD_LIBRARY_PATH
 - upgrade to the latest bindgen
