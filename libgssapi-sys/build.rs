@@ -64,8 +64,17 @@ fn main() {
             Err(_) => builder,
             Ok(flags) => builder.clang_args(flags.split(" ")),
         },
-        Gssapi::Apple =>
-            builder.clang_arg("-F/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/System/Library/Frameworks")
+        Gssapi::Apple => {
+            let sdk_path = Command::new("xcrun")
+                .arg("--show-sdk-path")
+                .output()
+                .map(|o| o.stdout)
+                .ok()
+                .and_then(|bytes| String::from_utf8(bytes).ok())
+                .expect("failed to run `xcrun --show-sdk-path'");
+            let sdk_path = sdk_path.trim();
+            builder.clang_arg(format!("-F{}/System/Library/Frameworks", sdk_path))
+        }
     };
     let bindings = builder
         .allowlist_type("(OM_.+|gss_.+)")
