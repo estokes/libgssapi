@@ -51,7 +51,7 @@ fn setup_client_ctx(
 // padding and trailer, but it encrypts the actual message content in
 // place. This is easy mode for iovs, and if your messages are large
 // it's probably nearly as fast as hard mode.
-fn wrap_secret_msg_alloc(ctx: &ClientCtx) -> Result<BytesMut, Error> {
+fn wrap_secret_msg_alloc(ctx: &mut ClientCtx) -> Result<BytesMut, Error> {
     let mut buf = BytesMut::new();
     let mut data = {
         buf.extend_from_slice(b"super secret message");
@@ -90,7 +90,7 @@ fn wrap_secret_msg_alloc(ctx: &ClientCtx) -> Result<BytesMut, Error> {
 // This wraps a secret message without asking gssapi to allocate
 // anything ever, it is quite verbose, but potentially a LOT faster
 // than standard wrap
-fn wrap_secret_msg_noalloc(ctx: &ClientCtx) -> Result<BytesMut, Error> {
+fn wrap_secret_msg_noalloc(ctx: &mut ClientCtx) -> Result<BytesMut, Error> {
     let mut buf = BytesMut::new();
     let mut data = {
         buf.extend_from_slice(b"super secret message");
@@ -154,7 +154,7 @@ fn wrap_secret_msg_noalloc(ctx: &ClientCtx) -> Result<BytesMut, Error> {
     Ok(buf.split())
 }
 
-fn unwrap_secret_msg(ctx: &ServerCtx, mut msg: BytesMut) -> Result<BytesMut, Error> {
+fn unwrap_secret_msg(ctx: &mut ServerCtx, mut msg: BytesMut) -> Result<BytesMut, Error> {
     let (hdr_len, data_len) = {
         let mut iov = [
             // this is the entire token
@@ -179,8 +179,8 @@ fn run(service_name: &[u8]) -> Result<(), Error> {
         s.add(&GSS_MECH_KRB5)?;
         s
     };
-    let (server_ctx, cname) = setup_server_ctx(service_name, &desired_mechs)?;
-    let client_ctx = setup_client_ctx(cname, &desired_mechs)?;
+    let (mut server_ctx, cname) = setup_server_ctx(service_name, &desired_mechs)?;
+    let mut client_ctx = setup_client_ctx(cname, &desired_mechs)?;
     let mut server_tok: Option<Buf> = None;
     loop {
         match client_ctx.step(server_tok.as_ref().map(|b| &**b))? {
@@ -197,15 +197,15 @@ fn run(service_name: &[u8]) -> Result<(), Error> {
     println!("client ctx info: {:#?}", client_ctx.info()?);
     println!("server ctx info: {:#?}", server_ctx.info()?);
     println!("wrapping secret message using no alloc method");
-    let encrypted = wrap_secret_msg_noalloc(&client_ctx)?;
-    let decrypted = unwrap_secret_msg(&server_ctx, encrypted)?;
+    let encrypted = wrap_secret_msg_noalloc(&mut client_ctx)?;
+    let decrypted = unwrap_secret_msg(&mut server_ctx, encrypted)?;
     println!(
         "The secret message is \"{}\"",
         String::from_utf8_lossy(&*decrypted)
     );
     println!("wrapping secret message using alloc method");
-    let encrypted = wrap_secret_msg_alloc(&client_ctx)?;
-    let decrypted = unwrap_secret_msg(&server_ctx, encrypted)?;
+    let encrypted = wrap_secret_msg_alloc(&mut client_ctx)?;
+    let decrypted = unwrap_secret_msg(&mut server_ctx, encrypted)?;
     println!(
         "The secret message is \"{}\"",
         String::from_utf8_lossy(&*decrypted)

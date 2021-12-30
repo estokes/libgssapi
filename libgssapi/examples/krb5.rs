@@ -118,8 +118,8 @@ fn run(service_name: &[u8]) -> Result<(), Error> {
         s.add(&GSS_MECH_KRB5)?;
         s
     };
-    let (server_ctx, cname) = setup_server_ctx(service_name, &desired_mechs)?;
-    let client_ctx = setup_client_ctx(cname, &desired_mechs)?;
+    let (mut server_ctx, cname) = setup_server_ctx(service_name, &desired_mechs)?;
+    let mut client_ctx = setup_client_ctx(cname, &desired_mechs)?;
     let mut server_tok: Option<Buf> = None;
     loop {
         match client_ctx.step(server_tok.as_ref().map(|b| &**b))? {
