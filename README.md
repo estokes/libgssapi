@@ -6,6 +6,8 @@ see [rfc2744](https://tools.ietf.org/html/rfc2744.html) for more info
 
 gssapi is a huge and complex beast that is also very old (like [Computer Chronicles](https://youtu.be/wpXnqBfgvPM?list=PLR6RS8PTcoXT4g8SgQEww7QMe8Vtv5LKe) old). So while this library might work for lots of mechanisms it has only been tested (so far) with Kerberos 5 using the MIT and Apple implementations.
 
+For a simpler cross platform interface to Kerberos 5 see [cross-krb5](https://crates.io/crates/cross-krb5).
+
 ### Example KRB5 Mutual Authentication Between Client and Server
 ```rust
 use libgssapi::{

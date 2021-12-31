@@ -2,6 +2,9 @@
 //! Kerberized services on unix. It has other uses, but Kerberos is by
 //! far the most common (and making Kerberos work well is the focus of
 //! this library).
+//! 
+//! For a simpler cross platform interface to Kerberos 5 see 
+//! [cross-krb5](https://crates.io/crates/cross-krb5).
 //!
 //! ## Contexts
 //!
