@@ -1,7 +1,7 @@
 use crate::util::Buf;
 use libgssapi_sys::{
     gss_OID_desc, gss_display_status, OM_uint32, GSS_C_CALLING_ERROR_OFFSET,
-    GSS_C_GSS_CODE, GSS_C_ROUTINE_ERROR_OFFSET, GSS_S_COMPLETE,
+    GSS_C_GSS_CODE, GSS_C_MECH_CODE, GSS_C_ROUTINE_ERROR_OFFSET, GSS_S_COMPLETE,
     _GSS_C_CALLING_ERROR_MASK, _GSS_C_ROUTINE_ERROR_MASK, _GSS_S_BAD_BINDINGS,
     _GSS_S_BAD_MECH, _GSS_S_BAD_MECH_ATTR, _GSS_S_BAD_MIC, _GSS_S_BAD_NAME,
     _GSS_S_BAD_NAMETYPE, _GSS_S_BAD_QOP, _GSS_S_BAD_SIG, _GSS_S_BAD_STATUS,
@@ -58,13 +58,19 @@ pub(crate) fn gss_error(x: OM_uint32) -> OM_uint32 {
 }
 
 #[derive(Clone, Copy, Debug)]
+enum ErrorComponent {
+    Major = GSS_C_GSS_CODE as isize,
+    Minor = GSS_C_MECH_CODE as isize,
+}
+
+#[derive(Clone, Copy, Debug)]
 pub struct Error {
     pub major: MajorFlags,
     pub minor: u32,
 }
 
 impl Error {
-    fn fmt_code(f: &mut fmt::Formatter<'_>, code: u32, name: &str) -> fmt::Result {
+    fn fmt_code(f: &mut fmt::Formatter<'_>, code: u32, ctype: ErrorComponent) -> fmt::Result {
         let mut message_context: OM_uint32 = 0;
         loop {
             let mut minor = GSS_S_COMPLETE as OM_uint32;
@@ -73,18 +79,21 @@ impl Error {
                 gss_display_status(
                     &mut minor as *mut OM_uint32,
                     code,
-                    GSS_C_GSS_CODE as i32,
+                    ctype as i32,
                     ptr::null_mut::<gss_OID_desc>(),
                     &mut message_context as *mut OM_uint32,
                     buf.to_c(),
                 )
             };
-            if major == GSS_S_COMPLETE {
+            if major == GSS_S_COMPLETE || major == _GSS_S_CONTINUE_NEEDED {
                 let s = String::from_utf8_lossy(&*buf);
-                let res = write!(f, "gssapi {} error {}\n", name, s);
+                let res = match ctype {
+                    ErrorComponent::Major => write!(f, "{}", s),
+                    ErrorComponent::Minor => write!(f, " ({})", s),
+                };
                 res?
             } else {
-                write!(f, "gssapi unknown {} error code {}\n", name, code)?;
+                write!(f, "unknown GSSAPI({:?}) error code({})\n", ctype, code)?;
                 break;
             }
             if message_context == 0 {
@@ -97,8 +106,8 @@ impl Error {
 
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        Error::fmt_code(f, self.major.bits(), "major")?;
-        Ok(Error::fmt_code(f, self.minor, "minor")?)
+        Error::fmt_code(f, self.major.bits(), ErrorComponent::Major)?;
+        Ok(Error::fmt_code(f, self.minor, ErrorComponent::Minor)?)
     }
 }
 
