@@ -58,13 +58,19 @@ pub(crate) fn gss_error(x: OM_uint32) -> OM_uint32 {
 }
 
 #[derive(Clone, Copy, Debug)]
+enum ErrorComponent {
+    Major = GSS_C_GSS_CODE as isize,
+    Minor = GSS_C_MECH_CODE as isize,
+}
+
+#[derive(Clone, Copy, Debug)]
 pub struct Error {
     pub major: MajorFlags,
     pub minor: u32,
 }
 
 impl Error {
-    fn fmt_code(f: &mut fmt::Formatter<'_>, code: u32, ctype: u32) -> fmt::Result {
+    fn fmt_code(f: &mut fmt::Formatter<'_>, code: u32, ctype: ErrorComponent) -> fmt::Result {
         let mut message_context: OM_uint32 = 0;
         loop {
             let mut minor = GSS_S_COMPLETE as OM_uint32;
@@ -79,16 +85,15 @@ impl Error {
                     buf.to_c(),
                 )
             };
-            if major == GSS_S_COMPLETE || major == GSS_S_CONTINUE_NEEDED {
+            if major == GSS_S_COMPLETE || major == _GSS_S_CONTINUE_NEEDED {
                 let s = String::from_utf8_lossy(&*buf);
                 let res = match ctype {
-                    GSS_C_GSS_CODE => write!(f, "{}", s),
-                    GSS_C_MECH_CODE => write!(f, " ({})", s),
-                    _ => panic!("invalid error message type: {}", ctype),
+                    ErrorComponent::Major => write!(f, "{}", s),
+                    ErrorComponent::Minor => write!(f, " ({})", s),
                 };
                 res?
             } else {
-                write!(f, "unknown GSSAPI({}) error code({})\n", ctype, code)?;
+                write!(f, "unknown GSSAPI({:?}) error code({})\n", ctype, code)?;
                 break;
             }
             if message_context == 0 {
@@ -101,8 +106,8 @@ impl Error {
 
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        Error::fmt_code(f, self.major.bits(), GSS_C_GSS_CODE)?;
-        Ok(Error::fmt_code(f, self.minor, GSS_C_MECH_CODE)?)
+        Error::fmt_code(f, self.major.bits(), ErrorComponent::Major)?;
+        Ok(Error::fmt_code(f, self.minor, ErrorComponent::Minor)?)
     }
 }
 
