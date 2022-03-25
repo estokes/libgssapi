@@ -655,7 +655,6 @@ pub struct ClientCtx {
     flags: CtxFlags,
     state: ClientCtxState,
     mech: Option<&'static Oid>,
-    cbt: Option<Vec<u8>>,
 }
 
 impl Drop for ClientCtx {
@@ -686,19 +685,21 @@ impl ClientCtx {
             flags,
             state: ClientCtxState::Uninitialized,
             mech,
-            cbt: None,
         }
     }
 
     /// Perform 1 step in the initialization of the specfied security
     /// context. Since the client initiates context creation, the
-    /// token will initially be None, and gssapi will give you a token
+    /// token will initially be None. If the connection uses channel
+    /// bindings, they are passed as the second argument.
+    ///
+    /// As a result this step, GSSAPI will give you a token
     /// to send to the server. The server may send back a token, which
     /// you must feed to this function, and possibly get another token
     /// to send to the server. This will go on a mechanism specifiec
     /// number of times until step returns `Ok(None)`. At that point
     /// the context is fully initialized.
-    pub fn step(&mut self, tok: Option<&[u8]>) -> Result<Option<Buf>, Error> {
+    pub fn step(&mut self, tok: Option<&[u8]>, channel_bindings: Option<&[u8]>) -> Result<Option<Buf>, Error> {
         #[inline]
         fn empty_buffer() -> gss_buffer_desc {
             gss_buffer_desc {
@@ -719,10 +720,10 @@ impl ClientCtx {
             acceptor_address: empty_buffer(),
             application_data: empty_buffer(),
         };
-        let bindings = if let Some(cbt) = &self.cbt {
+        let bindings = if let Some(cb) = channel_bindings {
             cbs.application_data = gss_buffer_desc {
-                length: cbt.len() as u64,
-                value: cbt.as_ptr() as *mut ffi::c_void,
+                length: cb.len() as u64,
+                value: cb.as_ptr() as *mut ffi::c_void,
             };
             &mut cbs as gss_channel_bindings_t
         } else {
@@ -754,7 +755,6 @@ impl ClientCtx {
                 ptr::null_mut::<OM_uint32>(),
             )
         };
-        self.cbt = None;
         if gss_error(major) > 0 {
             let e = Error {
                 major: unsafe { MajorFlags::from_bits_unchecked(major) },
@@ -773,17 +773,6 @@ impl ClientCtx {
                 Ok(None)
             }
         }
-    }
-
-    /// Set the channel binding token which will be incorporated
-    /// into the next generated GSSAPI token. Channel bindings are opaque
-    /// structures whose content is dictated by the application.
-    ///
-    /// The channel binding token is "spent" after the `step()` call
-    /// on the context. If you need it for another step, you must
-    /// set it again.
-    pub fn set_cb_token(&mut self, cbt: Vec<u8>) {
-        self.cbt = Some(cbt);
     }
 }
 
