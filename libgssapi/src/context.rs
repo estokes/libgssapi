@@ -8,7 +8,7 @@ use crate::{
     util::{Buf, BufRef},
 };
 use libgssapi_sys::{
-    gss_OID, gss_accept_sec_context, gss_buffer_desc, gss_channel_bindings_struct,
+    gss_OID, gss_accept_sec_context, gss_buffer_desc, gss_channel_bindings_struct, gss_channel_bindings_t,
     gss_cred_id_struct, gss_cred_id_t, gss_ctx_id_t, gss_delete_sec_context,
     gss_init_sec_context, gss_inquire_context, gss_name_t, gss_unwrap, gss_wrap,
     OM_uint32, GSS_C_ANON_FLAG, GSS_C_CONF_FLAG, GSS_C_DELEG_FLAG,
@@ -20,7 +20,7 @@ use libgssapi_sys::{
 use libgssapi_sys::{
     gss_iov_buffer_desc, gss_unwrap_iov, gss_wrap_iov, gss_wrap_iov_length,
 };
-use std::{ptr,  time::Duration};
+use std::{ffi, ptr, time::Duration};
 
 bitflags! {
     pub struct CtxFlags: u32 {
@@ -690,17 +690,44 @@ impl ClientCtx {
 
     /// Perform 1 step in the initialization of the specfied security
     /// context. Since the client initiates context creation, the
-    /// token will initially be None, and gssapi will give you a token
+    /// token will initially be None. If the connection uses channel
+    /// bindings, they are passed as the second argument.
+    ///
+    /// As a result this step, GSSAPI will give you a token
     /// to send to the server. The server may send back a token, which
     /// you must feed to this function, and possibly get another token
     /// to send to the server. This will go on a mechanism specifiec
     /// number of times until step returns `Ok(None)`. At that point
     /// the context is fully initialized.
-    pub fn step(&mut self, tok: Option<&[u8]>) -> Result<Option<Buf>, Error> {
+    pub fn step(&mut self, tok: Option<&[u8]>, channel_bindings: Option<&[u8]>) -> Result<Option<Buf>, Error> {
+        #[inline]
+        fn empty_buffer() -> gss_buffer_desc {
+            gss_buffer_desc {
+                length: 0,
+                value: ptr::null_mut(),
+            }
+        }
+
         match self.state {
             ClientCtxState::Uninitialized | ClientCtxState::Partial => (),
             ClientCtxState::Failed(e) => return Err(e),
             ClientCtxState::Complete => return Ok(None),
+        };
+        let mut cbs = gss_channel_bindings_struct {
+            initiator_addrtype: 0,
+            initiator_address: empty_buffer(),
+            acceptor_addrtype: 0,
+            acceptor_address: empty_buffer(),
+            application_data: empty_buffer(),
+        };
+        let bindings = if let Some(cb) = channel_bindings {
+            cbs.application_data = gss_buffer_desc {
+                length: cb.len() as u64,
+                value: cb.as_ptr() as *mut ffi::c_void,
+            };
+            &mut cbs as gss_channel_bindings_t
+        } else {
+            ptr::null_mut::<gss_channel_bindings_struct>()
         };
         let mut minor = GSS_S_COMPLETE;
         let mut tok = tok.map(BufRef::from);
@@ -717,7 +744,7 @@ impl ClientCtx {
                 },
                 self.flags.bits(),
                 _GSS_C_INDEFINITE,
-                ptr::null_mut::<gss_channel_bindings_struct>(),
+                bindings,
                 match tok {
                     None => ptr::null_mut::<gss_buffer_desc>(),
                     Some(ref mut tok) => tok.to_c(),
