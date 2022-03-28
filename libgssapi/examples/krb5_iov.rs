@@ -183,7 +183,7 @@ fn run(service_name: &[u8]) -> Result<(), Error> {
     let mut client_ctx = setup_client_ctx(cname, &desired_mechs)?;
     let mut server_tok: Option<Buf> = None;
     loop {
-        match client_ctx.step(server_tok.as_ref().map(|b| &**b))? {
+        match client_ctx.step(server_tok.as_ref().map(|b| &**b), None)? {
             None => break,
             Some(client_tok) => match server_ctx.step(&*client_tok)? {
                 None => break,

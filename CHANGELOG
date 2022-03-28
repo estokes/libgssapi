@@ -1,3 +1,6 @@
+0.6.0
+- Add support for channel bindings
+
 0.5.1
 - Fix minor error codes were not handled correctly by the error
   display logic. Now problems should be easer to debug since minor

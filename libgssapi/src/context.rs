@@ -8,10 +8,10 @@ use crate::{
     util::{Buf, BufRef},
 };
 use libgssapi_sys::{
-    gss_OID, gss_accept_sec_context, gss_buffer_desc, gss_channel_bindings_struct, gss_channel_bindings_t,
-    gss_cred_id_struct, gss_cred_id_t, gss_ctx_id_t, gss_delete_sec_context,
-    gss_init_sec_context, gss_inquire_context, gss_name_t, gss_unwrap, gss_wrap,
-    OM_uint32, GSS_C_ANON_FLAG, GSS_C_CONF_FLAG, GSS_C_DELEG_FLAG,
+    gss_OID, gss_accept_sec_context, gss_buffer_desc, gss_channel_bindings_struct,
+    gss_channel_bindings_t, gss_cred_id_struct, gss_cred_id_t, gss_ctx_id_t,
+    gss_delete_sec_context, gss_init_sec_context, gss_inquire_context, gss_name_t,
+    gss_unwrap, gss_wrap, OM_uint32, GSS_C_ANON_FLAG, GSS_C_CONF_FLAG, GSS_C_DELEG_FLAG,
     GSS_C_DELEG_POLICY_FLAG, GSS_C_INTEG_FLAG, GSS_C_MUTUAL_FLAG, GSS_C_PROT_READY_FLAG,
     GSS_C_QOP_DEFAULT, GSS_C_REPLAY_FLAG, GSS_C_SEQUENCE_FLAG, GSS_C_TRANS_FLAG,
     GSS_S_COMPLETE, _GSS_C_INDEFINITE, _GSS_S_CONTINUE_NEEDED,
@@ -699,7 +699,11 @@ impl ClientCtx {
     /// to send to the server. This will go on a mechanism specifiec
     /// number of times until step returns `Ok(None)`. At that point
     /// the context is fully initialized.
-    pub fn step(&mut self, tok: Option<&[u8]>, channel_bindings: Option<&[u8]>) -> Result<Option<Buf>, Error> {
+    pub fn step(
+        &mut self,
+        tok: Option<&[u8]>,
+        channel_bindings: Option<&[u8]>,
+    ) -> Result<Option<Buf>, Error> {
         #[inline]
         fn empty_buffer() -> gss_buffer_desc {
             gss_buffer_desc {
