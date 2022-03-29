@@ -465,6 +465,9 @@ pub trait SecurityContext {
 
     /// Return true if the security context is open
     fn open(&mut self) -> Result<bool, Error>;
+
+    /// Return true if the security context is fully initialized
+    fn is_complete(&self) -> bool;
 }
 
 #[derive(Debug)]
@@ -636,6 +639,15 @@ impl SecurityContext for ServerCtx {
     fn open(&mut self) -> Result<bool, Error> {
         unsafe { open(self.ctx) }
     }
+
+    fn is_complete(&self) -> bool {
+        match self.state {
+            ServerCtxState::Complete => true,
+            ServerCtxState::Failed(_)
+            | ServerCtxState::Partial
+            | ServerCtxState::Uninitialized => false,
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -711,7 +723,6 @@ impl ClientCtx {
                 value: ptr::null_mut(),
             }
         }
-
         match self.state {
             ClientCtxState::Uninitialized | ClientCtxState::Partial => (),
             ClientCtxState::Failed(e) => return Err(e),
@@ -838,5 +849,14 @@ impl SecurityContext for ClientCtx {
 
     fn open(&mut self) -> Result<bool, Error> {
         unsafe { open(self.ctx) }
+    }
+
+    fn is_complete(&self) -> bool {
+        match self.state {
+            ClientCtxState::Complete => true,
+            ClientCtxState::Failed(_)
+            | ClientCtxState::Partial
+            | ClientCtxState::Uninitialized => false,
+        }
     }
 }
