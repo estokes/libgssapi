@@ -1,3 +1,6 @@
+0.6.1
+- Add a method to check when a context is fully initialized
+
 0.6.0
 - Add support for channel bindings
 
