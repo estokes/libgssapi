@@ -1,3 +1,6 @@
+0.6.2
+- Fix building on 32 bit platforms.
+
 0.6.1
 - Add a method to check when a context is fully initialized
 
