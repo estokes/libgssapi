@@ -12,7 +12,7 @@ use libgssapi_sys::{
     _GSS_S_NAME_NOT_MN, _GSS_S_NO_CONTEXT, _GSS_S_NO_CRED, _GSS_S_OLD_TOKEN,
     _GSS_S_UNAUTHORIZED, _GSS_S_UNAVAILABLE, _GSS_S_UNSEQ_TOKEN,
 };
-use std::{error, fmt, ptr};
+use std::{error, fmt, ptr, os::raw::c_int};
 
 bitflags! {
     pub struct MajorFlags: u32 {
@@ -79,7 +79,7 @@ impl Error {
                 gss_display_status(
                     &mut minor as *mut OM_uint32,
                     code,
-                    ctype as i32,
+                    ctype as c_int,
                     ptr::null_mut::<gss_OID_desc>(),
                     &mut message_context as *mut OM_uint32,
                     buf.to_c(),

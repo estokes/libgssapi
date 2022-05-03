@@ -16,6 +16,7 @@ use std::{
     iter::{ExactSizeIterator, FromIterator, IntoIterator, Iterator},
     ops::{Deref, Index},
     ptr, slice,
+    os::raw::c_int,
 };
 
 // CR estokes: do I need the attributes from rfc 5587? There are loads of them.
@@ -192,7 +193,7 @@ impl Oid {
     /// you get the BER wrong something wonderful will happen, I just
     /// can't (won't?) say what.
     pub const fn from_slice(ber: &'static [u8]) -> Oid {
-        let length = ber.len() as u32;
+        let length = ber.len() as OM_uint32;
         let elements = ber.as_ptr() as *mut std::ffi::c_void;
         Oid(gss_OID_desc { length, elements })
     }
@@ -345,7 +346,7 @@ impl OidSet {
                 &mut minor as *mut OM_uint32,
                 id.to_c(),
                 self.0,
-                &mut present as *mut std::os::raw::c_int,
+                &mut present as *mut c_int,
             )
         };
         if major == GSS_S_COMPLETE {

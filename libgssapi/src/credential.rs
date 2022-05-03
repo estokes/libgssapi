@@ -141,7 +141,7 @@ impl Cred {
     unsafe fn info_c(&self, mut ifo: CredInfoC) -> Result<CredInfoC, Error> {
         let mut minor: u32 = 0;
         let major = gss_inquire_cred(
-            &mut minor as *mut u32,
+            &mut minor as *mut OM_uint32,
             self.0,
             match ifo.name {
                 None => ptr::null_mut::<gss_name_t>(),
@@ -149,11 +149,11 @@ impl Cred {
             },
             match ifo.lifetime {
                 None => ptr::null_mut::<u32>(),
-                Some(ref mut l) => l as *mut u32
+                Some(ref mut l) => l as *mut OM_uint32
             },
             match ifo.usage {
                 None => ptr::null_mut::<i32>(),
-                Some(ref mut u) => u as *mut i32
+                Some(ref mut u) => u as *mut gss_cred_usage_t
             },
             match ifo.mechanisms {
                 None => ptr::null_mut::<gss_OID_set>(),

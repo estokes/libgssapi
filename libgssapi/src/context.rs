@@ -8,6 +8,7 @@ use crate::{
     util::{Buf, BufRef},
 };
 use libgssapi_sys::{
+    size_t,
     gss_OID, gss_accept_sec_context, gss_buffer_desc, gss_channel_bindings_struct,
     gss_channel_bindings_t, gss_cred_id_struct, gss_cred_id_t, gss_ctx_id_t,
     gss_delete_sec_context, gss_init_sec_context, gss_inquire_context, gss_name_t,
@@ -20,7 +21,7 @@ use libgssapi_sys::{
 use libgssapi_sys::{
     gss_iov_buffer_desc, gss_unwrap_iov, gss_wrap_iov, gss_wrap_iov_length,
 };
-use std::{ffi, ptr, time::Duration};
+use std::{ffi, ptr, time::Duration, os::raw::c_int};
 
 bitflags! {
     pub struct CtxFlags: u32 {
@@ -87,7 +88,7 @@ unsafe fn wrap_iov(
         GSS_C_QOP_DEFAULT,
         ptr::null_mut(),
         msg.as_mut_ptr() as *mut gss_iov_buffer_desc,
-        msg.len() as i32,
+        msg.len() as c_int,
     );
     if major == GSS_S_COMPLETE {
         Ok(())
@@ -113,7 +114,7 @@ unsafe fn wrap_iov_length(
         GSS_C_QOP_DEFAULT,
         ptr::null_mut(),
         msg.as_mut_ptr() as *mut gss_iov_buffer_desc,
-        msg.len() as i32,
+        msg.len() as c_int,
     );
     if major == GSS_S_COMPLETE {
         Ok(())
@@ -156,7 +157,7 @@ unsafe fn unwrap_iov(ctx: gss_ctx_id_t, msg: &mut [GssIov]) -> Result<(), Error>
         ptr::null_mut(),
         ptr::null_mut(),
         msg.as_mut_ptr() as *mut gss_iov_buffer_desc,
-        msg.len() as i32,
+        msg.len() as c_int,
     );
     if major == GSS_S_COMPLETE {
         Ok(())
@@ -206,7 +207,7 @@ impl CtxInfoC {
 unsafe fn info(ctx: gss_ctx_id_t, mut ifo: CtxInfoC) -> Result<CtxInfoC, Error> {
     let mut minor: u32 = 0;
     let major = gss_inquire_context(
-        &mut minor as *mut u32,
+        &mut minor as *mut OM_uint32,
         ctx,
         match ifo.source_name {
             None => ptr::null_mut::<gss_name_t>(),
@@ -218,7 +219,7 @@ unsafe fn info(ctx: gss_ctx_id_t, mut ifo: CtxInfoC) -> Result<CtxInfoC, Error> 
         },
         match ifo.lifetime {
             None => ptr::null_mut::<u32>(),
-            Some(ref mut l) => l as *mut u32,
+            Some(ref mut l) => l as *mut OM_uint32,
         },
         match ifo.mechanism {
             None => ptr::null_mut::<gss_OID>(),
@@ -226,15 +227,15 @@ unsafe fn info(ctx: gss_ctx_id_t, mut ifo: CtxInfoC) -> Result<CtxInfoC, Error> 
         },
         match ifo.flags {
             None => ptr::null_mut::<u32>(),
-            Some(ref mut f) => f as *mut u32,
+            Some(ref mut f) => f as *mut OM_uint32,
         },
         match ifo.local {
             None => ptr::null_mut::<i32>(),
-            Some(ref mut l) => l as *mut i32,
+            Some(ref mut l) => l as *mut c_int,
         },
         match ifo.open {
             None => ptr::null_mut::<i32>(),
-            Some(ref mut o) => o as *mut i32,
+            Some(ref mut o) => o as *mut c_int,
         },
     );
     if gss_error(major) > 0 {
@@ -737,7 +738,7 @@ impl ClientCtx {
         };
         let bindings = if let Some(cb) = channel_bindings {
             cbs.application_data = gss_buffer_desc {
-                length: cb.len() as u64,
+                length: cb.len() as size_t,
                 value: cb.as_ptr() as *mut ffi::c_void,
             };
             &mut cbs as gss_channel_bindings_t
