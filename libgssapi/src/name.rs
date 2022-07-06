@@ -144,6 +144,30 @@ impl Name {
         }
     }
 
+    // Calls gss_display_name. Unlike fmt::Debug::to_string, this returns an
+    // error if the call is unsuccessful and doesn't handle utf-8 decoding.
+    pub fn display_name(&self) -> Result<Buf, Error> {
+        let mut out = Buf::empty();
+        let mut minor = GSS_S_COMPLETE;
+        let mut oid = ptr::null_mut::<gss_OID_desc>();
+        let major = unsafe {
+            gss_display_name(
+                &mut minor as *mut OM_uint32,
+                self.to_c(),
+                out.to_c(),
+                &mut oid as *mut gss_OID,
+            )
+        };
+        if major == GSS_S_COMPLETE {
+            Ok(out)
+        } else {
+            Err(Error {
+                major: unsafe { MajorFlags::from_bits_unchecked(major) },
+                minor
+            })
+        }
+    }
+
     /// Duplicate the name.
     pub fn duplicate(&self) -> Result<Self, Error> {
         let mut copy = ptr::null_mut::<gss_name_struct>();
