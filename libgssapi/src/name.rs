@@ -31,19 +31,12 @@ impl Drop for Name {
 
 impl fmt::Debug for Name {
     fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
-        let mut minor = GSS_S_COMPLETE;
-        let mut buf = Buf::empty();
-        let mut oid = ptr::null_mut::<gss_OID_desc>();
-        let major = unsafe {
-            gss_display_name(
-                &mut minor as *mut OM_uint32,
-                self.to_c(),
-                buf.to_c(),
-                &mut oid as *mut gss_OID,
-            )
-        };
-        if major == GSS_S_COMPLETE {
-            write!(f, "{}", String::from_utf8_lossy(&*buf))
+        if let Ok(buf) = self.display_name() {
+            if let Ok(s) = std::str::from_utf8(&buf) {
+                write!(f, "{}", s)
+            } else {
+                write!(f, "<name can't be decoded>")
+            }
         } else {
             write!(f, "<name can't be displayed>")
         }
