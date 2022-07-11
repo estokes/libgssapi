@@ -1,12 +1,12 @@
 use crate::{
     error::{Error, MajorFlags},
     util::{Buf, BufRef},
-    oid::Oid,
+    oid::{Oid, NO_OID},
 };
 use libgssapi_sys::{
     gss_OID, gss_OID_desc, gss_canonicalize_name, gss_display_name, gss_duplicate_name,
     gss_import_name, gss_name_struct, gss_name_t, gss_release_name, gss_export_name,
-    OM_uint32, GSS_S_COMPLETE,
+    OM_uint32, GSS_S_COMPLETE, gss_localname,
 };
 use std::{ptr, fmt};
 
@@ -156,6 +156,27 @@ impl Name {
                 self.to_c(),
                 out.to_c(),
                 &mut oid as *mut gss_OID,
+            )
+        };
+        if major == GSS_S_COMPLETE {
+            Ok(out)
+        } else {
+            Err(Error {
+                major: unsafe { MajorFlags::from_bits_unchecked(major) },
+                minor
+            })
+        }
+    }
+
+    pub fn local_name(&self, mechs: Option<&Oid>) -> Result<Buf, Error> {
+        let mut out = Buf::empty();
+        let mut minor = GSS_S_COMPLETE;
+        let major = unsafe {
+            gss_localname(
+                &mut minor as *mut OM_uint32,
+                self.0,
+                mechs.map_or(NO_OID, |o| o.to_c()),
+                out.to_c()
             )
         };
         if major == GSS_S_COMPLETE {
