@@ -165,6 +165,7 @@ impl Name {
     /// Return the raw textual representation of the internal GSS name
     /// as interpreted by the specified mechanism. If no mechanism is
     /// specified then it will be assumed to be NO_OID.
+    #[cfg(feature = "localname")]
     pub fn local_name(&self, mechs: Option<&Oid>) -> Result<Buf, Error> {
         let mut out = Buf::empty();
         let mut minor = GSS_S_COMPLETE;
