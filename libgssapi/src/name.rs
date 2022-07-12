@@ -137,8 +137,9 @@ impl Name {
         }
     }
 
-    // Calls gss_display_name. Unlike fmt::Debug::to_string, this returns an
-    // error if the call is unsuccessful and doesn't handle utf-8 decoding.
+    /// Return the raw textual representation of the internal GSS
+    /// name. Usually this will be utf8, or at least ascii, but that
+    /// isn't guaranteed.
     pub fn display_name(&self) -> Result<Buf, Error> {
         let mut out = Buf::empty();
         let mut minor = GSS_S_COMPLETE;
@@ -161,6 +162,9 @@ impl Name {
         }
     }
 
+    /// Return the raw textual representation of the internal GSS name
+    /// as interpreted by the specified mechanism. If no mechanism is
+    /// specified then it will be assumed to be NO_OID.
     pub fn local_name(&self, mechs: Option<&Oid>) -> Result<Buf, Error> {
         let mut out = Buf::empty();
         let mut minor = GSS_S_COMPLETE;
