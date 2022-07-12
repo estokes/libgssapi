@@ -6,8 +6,10 @@ use crate::{
 use libgssapi_sys::{
     gss_OID, gss_OID_desc, gss_canonicalize_name, gss_display_name, gss_duplicate_name,
     gss_import_name, gss_name_struct, gss_name_t, gss_release_name, gss_export_name,
-    OM_uint32, GSS_S_COMPLETE, gss_localname,
+    OM_uint32, GSS_S_COMPLETE,
 };
+#[cfg(feature = "localname")]
+use libgssapi_sys::gss_localname;
 use std::{ptr, fmt};
 
 pub struct Name(gss_name_t);
