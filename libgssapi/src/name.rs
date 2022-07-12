@@ -1,7 +1,7 @@
 use crate::{
     error::{Error, MajorFlags},
     util::{Buf, BufRef},
-    oid::{Oid, NO_OID},
+    oid::Oid,
 };
 use libgssapi_sys::{
     gss_OID, gss_OID_desc, gss_canonicalize_name, gss_display_name, gss_duplicate_name,
@@ -10,6 +10,8 @@ use libgssapi_sys::{
 };
 #[cfg(feature = "localname")]
 use libgssapi_sys::gss_localname;
+#[cfg(feature = "localname")]
+use crate::oid::NO_OID;
 use std::{ptr, fmt};
 
 pub struct Name(gss_name_t);
