@@ -85,7 +85,7 @@ impl Name {
             Ok(Name(name))
         } else {
             Err(Error {
-                major: unsafe { MajorFlags::from_bits_unchecked(major) },
+                major: MajorFlags::from_bits_retain(major),
                 minor
             })
         }
@@ -112,7 +112,7 @@ impl Name {
             Ok(Name(out))
         } else {
             Err(Error {
-                major: unsafe { MajorFlags::from_bits_unchecked(major) },
+                major: MajorFlags::from_bits_retain(major),
                 minor
             })
         }
@@ -135,7 +135,7 @@ impl Name {
             Ok(out)
         } else {
             Err(Error {
-                major: unsafe { MajorFlags::from_bits_unchecked(major) },
+                major: MajorFlags::from_bits_retain(major),
                 minor
             })
         }
@@ -160,7 +160,7 @@ impl Name {
             Ok(out)
         } else {
             Err(Error {
-                major: unsafe { MajorFlags::from_bits_unchecked(major) },
+                major: MajorFlags::from_bits_retain(major),
                 minor
             })
         }
@@ -185,7 +185,7 @@ impl Name {
             Ok(out)
         } else {
             Err(Error {
-                major: unsafe { MajorFlags::from_bits_unchecked(major) },
+                major: MajorFlags::from_bits_retain(major),
                 minor
             })
         }
@@ -206,7 +206,7 @@ impl Name {
             Ok(Name(copy))
         } else {
             Err(Error {
-                major: unsafe { MajorFlags::from_bits_unchecked(major) },
+                major: MajorFlags::from_bits_retain(major),
                 minor
             })
         }

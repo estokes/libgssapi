@@ -124,7 +124,7 @@ impl Cred {
             Ok(Cred(cred))
         } else {
             Err(Error {
-                major: unsafe { MajorFlags::from_bits_unchecked(major) },
+                major: MajorFlags::from_bits_retain(major),
                 minor
             })
         }
@@ -168,7 +168,7 @@ impl Cred {
             if let Some(s) = ifo.mechanisms {
                 OidSet::from_c(s);
             }
-            Err(Error { major: MajorFlags::from_bits_unchecked(major), minor })
+            Err(Error { major: MajorFlags::from_bits_retain(major), minor })
         } else {
             Ok(ifo)
         }

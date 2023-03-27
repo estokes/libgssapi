@@ -8,7 +8,6 @@ use crate::{
     util::{Buf, BufRef},
 };
 use libgssapi_sys::{
-    size_t,
     gss_OID, gss_accept_sec_context, gss_buffer_desc, gss_channel_bindings_struct,
     gss_channel_bindings_t, gss_cred_id_struct, gss_cred_id_t, gss_ctx_id_t,
     gss_delete_sec_context, gss_init_sec_context, gss_inquire_context, gss_name_t,
@@ -24,6 +23,7 @@ use libgssapi_sys::{
 use std::{ffi, ptr, time::Duration, os::raw::c_int};
 
 bitflags! {
+    #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
     pub struct CtxFlags: u32 {
         const GSS_C_DELEG_FLAG = GSS_C_DELEG_FLAG;
         const GSS_C_MUTUAL_FLAG = GSS_C_MUTUAL_FLAG;
@@ -68,7 +68,7 @@ unsafe fn wrap(ctx: gss_ctx_id_t, encrypt: bool, msg: &[u8]) -> Result<Buf, Erro
         Ok(enc_msg)
     } else {
         Err(Error {
-            major: MajorFlags::from_bits_unchecked(major),
+            major: MajorFlags::from_bits_retain(major),
             minor,
         })
     }
@@ -94,7 +94,7 @@ unsafe fn wrap_iov(
         Ok(())
     } else {
         Err(Error {
-            major: MajorFlags::from_bits_unchecked(major),
+            major: MajorFlags::from_bits_retain(major),
             minor,
         })
     }
@@ -120,7 +120,7 @@ unsafe fn wrap_iov_length(
         Ok(())
     } else {
         Err(Error {
-            major: MajorFlags::from_bits_unchecked(major),
+            major: MajorFlags::from_bits_retain(major),
             minor,
         })
     }
@@ -142,7 +142,7 @@ unsafe fn unwrap(ctx: gss_ctx_id_t, msg: &[u8]) -> Result<Buf, Error> {
         Ok(out)
     } else {
         Err(Error {
-            major: MajorFlags::from_bits_unchecked(major),
+            major: MajorFlags::from_bits_retain(major),
             minor,
         })
     }
@@ -163,7 +163,7 @@ unsafe fn unwrap_iov(ctx: gss_ctx_id_t, msg: &mut [GssIov]) -> Result<(), Error>
         Ok(())
     } else {
         Err(Error {
-            major: MajorFlags::from_bits_unchecked(major),
+            major: MajorFlags::from_bits_retain(major),
             minor,
         })
     }
@@ -247,7 +247,7 @@ unsafe fn info(ctx: gss_ctx_id_t, mut ifo: CtxInfoC) -> Result<CtxInfoC, Error> 
             Name::from_c(target_name);
         }
         Err(Error {
-            major: MajorFlags::from_bits_unchecked(major),
+            major: MajorFlags::from_bits_retain(major),
             minor,
         })
     } else {
@@ -273,7 +273,7 @@ unsafe fn full_info(ctx: gss_ctx_id_t) -> Result<CtxInfo, Error> {
         target_name: Name::from_c(c.target_name.unwrap()),
         lifetime: Duration::from_secs(c.lifetime.unwrap() as u64),
         mechanism: Oid::from_c(c.mechanism.unwrap()),
-        flags: CtxFlags::from_bits_unchecked(c.flags.unwrap()),
+        flags: CtxFlags::from_bits_retain(c.flags.unwrap()),
         local: c.local.unwrap() > 0,
         open: c.open.unwrap() > 0,
     })
@@ -331,7 +331,7 @@ unsafe fn flags(ctx: gss_ctx_id_t) -> Result<CtxFlags, Error> {
             ..CtxInfoC::empty()
         },
     )?;
-    Ok(CtxFlags::from_bits_unchecked(c.flags.unwrap()))
+    Ok(CtxFlags::from_bits_retain(c.flags.unwrap()))
 }
 
 unsafe fn local(ctx: gss_ctx_id_t) -> Result<bool, Error> {
@@ -562,7 +562,7 @@ impl ServerCtx {
         }
         if gss_error(major) > 0 {
             let e = Error {
-                major: unsafe { MajorFlags::from_bits_unchecked(major) },
+                major: MajorFlags::from_bits_retain(major),
                 minor,
             };
             self.state = ServerCtxState::Failed(e);
@@ -738,7 +738,7 @@ impl ClientCtx {
         };
         let bindings = if let Some(cb) = channel_bindings {
             cbs.application_data = gss_buffer_desc {
-                length: cb.len() as size_t,
+                length: cb.len(),
                 value: cb.as_ptr() as *mut ffi::c_void,
             };
             &mut cbs as gss_channel_bindings_t
@@ -773,7 +773,7 @@ impl ClientCtx {
         };
         if gss_error(major) > 0 {
             let e = Error {
-                major: unsafe { MajorFlags::from_bits_unchecked(major) },
+                major: MajorFlags::from_bits_retain(major),
                 minor,
             };
             self.state = ClientCtxState::Failed(e);

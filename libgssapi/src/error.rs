@@ -15,6 +15,7 @@ use libgssapi_sys::{
 use std::{error, fmt, ptr, os::raw::c_int};
 
 bitflags! {
+    #[derive(Clone, Copy, Debug)]
     pub struct MajorFlags: u32 {
         // calling errors
         const GSS_S_CALL_INACCESSIBLE_READ = _GSS_S_CALL_INACCESSIBLE_READ;
