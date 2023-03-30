@@ -296,7 +296,7 @@ impl OidSet {
             Ok(OidSet(out))
         } else {
             Err(Error {
-                major: unsafe { MajorFlags::from_bits_unchecked(major) },
+                major: MajorFlags::from_bits_retain(major),
                 minor,
             })
         }
@@ -330,7 +330,7 @@ impl OidSet {
             Ok(())
         } else {
             Err(Error {
-                major: unsafe { MajorFlags::from_bits_unchecked(major) },
+                major: MajorFlags::from_bits_retain(major),
                 minor,
             })
         }
@@ -353,7 +353,7 @@ impl OidSet {
             Ok(if present != 0 { true } else { false })
         } else {
             Err(Error {
-                major: unsafe { MajorFlags::from_bits_unchecked(major) },
+                major: MajorFlags::from_bits_retain(major),
                 minor,
             })
         }

@@ -1,7 +1,7 @@
 use bytes;
 use libgssapi_sys::{
-    gss_buffer_desc, gss_buffer_desc_struct, gss_buffer_t, gss_release_buffer, size_t,
-    OM_uint32, GSS_S_COMPLETE,
+    gss_buffer_desc, gss_buffer_desc_struct, gss_buffer_t, gss_release_buffer, OM_uint32,
+    GSS_S_COMPLETE,
 };
 use std::{
     ffi,
@@ -131,7 +131,7 @@ mod iov {
             let gss_iov = gss_iov_buffer_desc {
                 type_: typ.to_c(),
                 buffer: gss_buffer_desc_struct {
-                    length: data.len() as size_t,
+                    length: data.len(),
                     value: data.as_mut_ptr().cast(),
                 },
             };
@@ -207,7 +207,7 @@ impl<'a> Deref for BufRef<'a> {
 impl<'a> From<&'a [u8]> for BufRef<'a> {
     fn from(s: &[u8]) -> Self {
         let gss_buf = gss_buffer_desc_struct {
-            length: s.len() as size_t,
+            length: s.len(),
             value: s.as_ptr() as *mut ffi::c_void,
         };
         BufRef(gss_buf, PhantomData)
@@ -261,7 +261,7 @@ impl Drop for Buf {
 impl Buf {
     pub(crate) fn empty() -> Buf {
         Buf(gss_buffer_desc {
-            length: 0 as size_t,
+            length: 0,
             value: ptr::null_mut(),
         })
     }
