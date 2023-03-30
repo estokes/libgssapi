@@ -19,6 +19,6 @@ localname = []
 
 [dependencies]
 bytes = "1"
-libgssapi-sys = { version = "0.2.4", path = "../libgssapi-sys" }
+libgssapi-sys = { version = "0.2.5", path = "../libgssapi-sys" }
 bitflags = "2.0"
 lazy_static = "1.4"
