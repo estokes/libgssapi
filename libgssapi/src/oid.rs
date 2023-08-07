@@ -60,6 +60,8 @@ pub static GSS_MECH_KRB5: Oid = Oid::from_slice(b"\x2a\x86\x48\x86\xf7\x12\x01\x
 
 pub static GSS_MECH_IAKERB: Oid = Oid::from_slice(b"\x2b\x06\x01\x05\x02\x05");
 
+pub static GSS_MECH_SPNEGO: Oid = Oid::from_slice(b"\x2b\x06\x01\x05\x05\x02");
+
 pub static GSS_KRB5_CRED_NO_CI_FLAGS_X: Oid =
     Oid::from_slice(b"\x2a\x85\x70\x2b\x0d\x1d");
 
