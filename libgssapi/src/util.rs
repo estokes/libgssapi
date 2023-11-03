@@ -3,6 +3,8 @@ use libgssapi_sys::{
     gss_buffer_desc, gss_buffer_desc_struct, gss_buffer_t, gss_release_buffer, OM_uint32,
     GSS_S_COMPLETE,
 };
+#[cfg(feature = "s4u")]
+use libgssapi_sys::{gss_buffer_set_t, gss_release_buffer_set};
 use std::{
     ffi,
     marker::PhantomData,
@@ -310,3 +312,67 @@ impl GssBytes {
         self.buf
     }
 }
+
+#[cfg(feature = "s4u")]
+mod s4u {
+    use super::*;
+
+    /// This represents an owned buffer set we got from gssapi, it will be
+    /// deallocated via the library routine when it is dropped.
+    #[repr(transparent)]
+    #[allow(dead_code)]
+    #[derive(Debug)]
+    pub(crate) struct BufSet<'a>(gss_buffer_set_t, PhantomData<&'a [BufRef<'a>]>);
+
+    unsafe impl Send for BufSet<'_> {}
+    unsafe impl Sync for BufSet<'_> {}
+
+    impl<'a> Deref for BufSet<'a> {
+        type Target = [BufRef<'a>];
+
+        fn deref(&self) -> &'a Self::Target {
+            if self.0.is_null() {
+                &[]
+            } else {
+                unsafe { slice::from_raw_parts((*self.0).elements.cast(), (*self.0).count as usize) }
+            }
+        }
+    }
+
+    impl<'a> DerefMut for BufSet<'a> {
+        fn deref_mut(&mut self) -> &'a mut Self::Target {
+            if self.0.is_null() {
+                &mut []
+            } else {
+                unsafe { slice::from_raw_parts_mut((*self.0).elements.cast(), (*self.0).count as usize) }
+            }
+        }
+    }
+
+    impl Drop for BufSet<'_> {
+        fn drop(&mut self) {
+            if !self.0.is_null() {
+                let mut minor = GSS_S_COMPLETE;
+                let _major = unsafe {
+                    gss_release_buffer_set(
+                        &mut minor as *mut OM_uint32,
+                        &mut self.0,
+                    )
+                };
+            }
+        }
+    }
+
+    impl BufSet<'_> {
+        pub(crate) fn empty() -> Self {
+            Self(ptr::null_mut(), PhantomData)
+        }
+
+        pub(crate) unsafe fn to_c(&mut self) -> &mut gss_buffer_set_t {
+            &mut self.0
+        }
+    }
+}
+
+#[cfg(feature = "s4u")]
+pub(crate) use s4u::*;
