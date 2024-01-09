@@ -18,8 +18,24 @@ enum Gssapi {
     Apple,
 }
 
+fn builder_from_pkgconfig(lib: pkg_config::Library) -> bindgen::Builder {
+    bindgen::Builder::default()
+        .clang_args(lib.include_paths.iter().map(|path| format!("-I{}", path.to_string_lossy())))
+}
+
+fn try_pkgconfig() -> Result<(Gssapi, bindgen::Builder), pkg_config::Error> {
+    match pkg_config::probe_library("mit-krb5-gssapi") {
+        Ok(lib) => Ok((Gssapi::Mit, builder_from_pkgconfig(lib))),
+        Err(_) => match pkg_config::probe_library("heimdal-gssapi") {
+            Ok(lib) => Ok((Gssapi::Heimdal, builder_from_pkgconfig(lib))),
+            Err(lib) => Err(lib),
+        }
+    }
+}
+
 fn which() -> Gssapi {
     if cfg!(target_os = "macos") {
+        println!("cargo:rustc-link-lib=framework=GSS");
         return Gssapi::Apple;
     } else if cfg!(target_os = "windows") {
         panic!("use SSPI on windows")
@@ -37,9 +53,11 @@ fn which() -> Gssapi {
         for path in krb5_path.into_iter().chain(ldpath.split(':')).chain(paths) {
             if !path.is_empty() {
                 if search_pat(path, "libgssapi_krb5.so*") {
+                    println!("cargo:rustc-link-lib=gssapi_krb5");
                     return Gssapi::Mit;
                 }
                 if search_pat(path, "libgssapi.so*") {
+                    println!("cargo:rustc-link-lib=gssapi");
                     return Gssapi::Heimdal;
                 }
             }
@@ -51,21 +69,22 @@ fn which() -> Gssapi {
 }
 
 fn main() {
-    let imp = which();
-    match imp {
-        Gssapi::Mit => println!("cargo:rustc-link-lib=gssapi_krb5"),
-        Gssapi::Heimdal => println!("cargo:rustc-link-lib=gssapi"),
-        Gssapi::Apple => println!("cargo:rustc-link-lib=framework=GSS"),
-    }
-    let builder = bindgen::Builder::default();
-    let nix_cflags = env::var("NIX_CFLAGS_COMPILE");
-    let builder = match imp {
-        Gssapi::Mit | Gssapi::Heimdal => match nix_cflags {
-            Err(_) => builder,
-            Ok(flags) => builder.clang_args(flags.split(" ")),
-        },
-        Gssapi::Apple =>
-            builder.clang_arg("-F/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/System/Library/Frameworks")
+    let (imp, builder) = match try_pkgconfig() {
+        Ok((imp, builder)) => (imp, builder),
+        Err(_) => {
+            let imp = which();
+            let builder = bindgen::Builder::default();
+            let nix_cflags = env::var("NIX_CFLAGS_COMPILE");
+            let builder = match imp {
+                Gssapi::Mit | Gssapi::Heimdal => match nix_cflags {
+                    Err(_) => builder,
+                    Ok(flags) => builder.clang_args(flags.split(" ")),
+                },
+                Gssapi::Apple =>
+                builder.clang_arg("-F/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/System/Library/Frameworks")
+            };
+            (imp, builder)
+        }
     };
     let bindings = builder
         .allowlist_type("(OM_.+|gss_.+)")
