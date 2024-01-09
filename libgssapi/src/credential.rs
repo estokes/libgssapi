@@ -4,6 +4,10 @@ use libgssapi_sys::{
     gss_name_struct, gss_name_t, gss_release_cred, gss_inquire_cred, OM_uint32,
     GSS_C_ACCEPT, GSS_C_BOTH, GSS_C_INITIATE, GSS_S_COMPLETE, _GSS_C_INDEFINITE,
 };
+#[cfg(feature = "s4u")]
+use libgssapi_sys::{gss_acquire_cred_impersonate_name, gss_inquire_cred_by_oid};
+#[cfg(feature = "s4u")]
+use crate::{oid::{GSS_NT_HOSTBASED_SERVICE, GSS_KRB5_GET_CRED_IMPERSONATOR}, util::BufSet};
 use std::{ptr, fmt, time::Duration};
 
 pub(crate) const NO_CRED: gss_cred_id_t = ptr::null_mut();
@@ -11,6 +15,7 @@ pub(crate) const NO_CRED: gss_cred_id_t = ptr::null_mut();
 #[derive(Debug)]
 pub struct CredInfo {
     pub name: Name,
+    pub proxy: Option<Name>,
     pub lifetime: Duration,
     pub usage: CredUsage,
     pub mechanisms: OidSet,
@@ -132,6 +137,44 @@ impl Cred {
         }
     }
 
+    #[cfg(feature = "s4u")]
+    pub fn impersonate(
+        &self,
+        name: &Name,
+        time_req: Option<Duration>,
+        usage: CredUsage,
+        desired_mechs: Option<&OidSet>,
+    ) -> Result<Cred, Error> {
+        let time_req = time_req.map(|d| d.as_secs() as u32).unwrap_or(_GSS_C_INDEFINITE);
+        let mut minor = GSS_S_COMPLETE;
+        let usage = usage.to_c();
+        let mut cred = ptr::null_mut::<gss_cred_id_struct>();
+        let major = unsafe {
+            gss_acquire_cred_impersonate_name(
+                &mut minor as *mut OM_uint32,
+                self.to_c(),
+                name.to_c(),
+                time_req,
+                match desired_mechs {
+                    None => NO_OID_SET,
+                    Some(desired_mechs) => desired_mechs.to_c()
+                },
+                usage as gss_cred_usage_t,
+                &mut cred as *mut gss_cred_id_t,
+                ptr::null_mut::<gss_OID_set>(),
+                ptr::null_mut::<OM_uint32>(),
+            )
+        };
+        if major == GSS_S_COMPLETE {
+            Ok(Cred(cred))
+        } else {
+            Err(Error {
+                major: MajorFlags::from_bits_retain(major),
+                minor,
+            })
+        }
+    }
+
     pub(crate) unsafe fn from_c(cred: gss_cred_id_t) -> Cred {
         Cred(cred)
     }
@@ -187,6 +230,7 @@ impl Cred {
             })?;
             Ok(CredInfo {
                 name: Name::from_c(c.name.unwrap()),
+                proxy: self.proxy()?,
                 lifetime: Duration::from_secs(c.lifetime.unwrap() as u64),
                 usage: CredUsage::from_c(c.usage.unwrap())?,
                 mechanisms: OidSet::from_c(c.mechanisms.unwrap())
@@ -203,6 +247,35 @@ impl Cred {
             })?;
             Ok(Name::from_c(c.name.unwrap()))
         }
+    }
+
+    /// Return the proxy service associated with this credential
+    pub fn proxy(&self) -> Result<Option<Name>, Error> {
+        #[cfg(feature = "s4u")]
+        unsafe {
+            let mut out = BufSet::empty();
+            let mut minor: u32 = 0;
+            let major = gss_inquire_cred_by_oid(
+                &mut minor as *mut OM_uint32,
+                self.0,
+                GSS_KRB5_GET_CRED_IMPERSONATOR.to_c(),
+                out.to_c(),
+            );
+            if gss_error(major) > 0 {
+                Err(Error {
+                    major: MajorFlags::from_bits_retain(major),
+                    minor,
+                })
+            } else {
+                if let Some(name) = out.first() {
+                    Name::new(name, Some(&GSS_NT_HOSTBASED_SERVICE)).map(Into::into)
+                } else {
+                    Ok(None)
+                }
+            }
+        }
+        #[cfg(not(feature = "s4u"))]
+        Ok(None)
     }
 
     /// Return the lifetime of this credential
