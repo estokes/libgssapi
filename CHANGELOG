@@ -1,3 +1,10 @@
+0.7.0
+
+- merge #19 use package-config if available to find gssapi
+- merge #18 support constrained delegation
+- merge #17 expose GSS_MECH_SPNEGO
+- merge #16 allow passing empty credentials to trigger using GSS_C_NO_CREDENTIAL
+
 0.6.4
 
 - update dependencies
