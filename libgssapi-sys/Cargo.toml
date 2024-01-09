@@ -14,5 +14,5 @@ categories = ["api-bindings", "authentication", "cryptography", "os::unix-apis"]
 links = "gssapi_krb5"
 
 [build-dependencies]
-bindgen = "0.64"
+bindgen = "0.69"
 pkg-config = "0.3"
