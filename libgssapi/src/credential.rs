@@ -6,6 +6,8 @@ use libgssapi_sys::{
 };
 use std::{ptr, fmt, time::Duration};
 
+pub(crate) const NO_CRED: gss_cred_id_t = ptr::null_mut();
+
 #[derive(Debug)]
 pub struct CredInfo {
     pub name: Name,

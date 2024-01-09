@@ -1,7 +1,7 @@
 #[cfg(feature = "iov")]
 use crate::util::{GssIov, GssIovFake};
 use crate::{
-    credential::Cred,
+    credential::{Cred, NO_CRED},
     error::{gss_error, Error, MajorFlags},
     name::Name,
     oid::{Oid, NO_OID},
@@ -663,7 +663,7 @@ enum ClientCtxState {
 #[derive(Debug)]
 pub struct ClientCtx {
     ctx: gss_ctx_id_t,
-    cred: Cred,
+    cred: Option<Cred>,
     target: Name,
     flags: CtxFlags,
     state: ClientCtxState,
@@ -686,7 +686,7 @@ impl ClientCtx {
     /// will pick a default for you). To finish initializing the
     /// context you must call `step`.
     pub fn new(
-        cred: Cred,
+        cred: Option<Cred>,
         target: Name,
         flags: CtxFlags,
         mech: Option<&'static Oid>,
@@ -751,7 +751,10 @@ impl ClientCtx {
         let major = unsafe {
             gss_init_sec_context(
                 &mut minor as *mut OM_uint32,
-                self.cred.to_c(),
+                match &self.cred {
+                    None => NO_CRED,
+                    Some(cred) => cred.to_c(),
+                },
                 &mut self.ctx as *mut gss_ctx_id_t,
                 self.target.to_c(),
                 match self.mech {
