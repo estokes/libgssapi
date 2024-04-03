@@ -41,6 +41,9 @@ pub static GSS_NT_COMPOSITE_EXPORT: Oid = Oid::from_slice(b"\x2b\x06\x01\x05\x06
 pub static GSS_NT_KRB5_PRINCIPAL: Oid =
     Oid::from_slice(b"\x2a\x86\x48\x86\xf7\x12\x01\x02\x02\x01");
 
+pub static GSS_NT_KRB5_ENTERPRISE_NAME: Oid =
+    Oid::from_slice(b"\x2a\x86\x48\x86\xf7\x12\x01\x02\x02\x06");
+
 pub static GSS_INQ_SSPI_SESSION_KEY: Oid =
     Oid::from_slice(b"\x2a\x86\x48\x86\xf7\x12\x01\x02\x02\x05\x05");
 
@@ -89,6 +92,7 @@ lazy_static! {
             (GSS_MECH_KRB5, "GSS_MECH_KRB5"),
             (GSS_MECH_IAKERB, "GSS_MECH_IAKERB"),
             (GSS_NT_KRB5_PRINCIPAL, "GSS_KRB5_NT_PRINCIPAL"),
+            (GSS_NT_KRB5_ENTERPRISE_NAME, "GSS_KRB5_NT_ENTERPRISE_NAME"),
             (GSS_KRB5_CRED_NO_CI_FLAGS_X, "GSS_KRB5_CRED_NO_CI_FLAGS_X"),
             (
                 GSS_KRB5_GET_CRED_IMPERSONATOR,
