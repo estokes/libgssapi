@@ -579,6 +579,10 @@ impl ServerCtx {
             }
         }
     }
+
+    pub fn delegated_cred(&self) -> Option<&Cred> {
+        self.delegated_cred.as_ref()
+    }
 }
 
 impl SecurityContext for ServerCtx {
@@ -748,6 +752,7 @@ impl ClientCtx {
         let mut minor = GSS_S_COMPLETE;
         let mut tok = tok.map(BufRef::from);
         let mut out_tok = Buf::empty();
+        let mut flag_bits: u32 = 0;
         let major = unsafe {
             gss_init_sec_context(
                 &mut minor as *mut OM_uint32,
@@ -770,10 +775,13 @@ impl ClientCtx {
                 },
                 ptr::null_mut::<gss_OID>(),
                 out_tok.to_c(),
-                ptr::null_mut::<OM_uint32>(),
+                &mut flag_bits as *mut OM_uint32,
                 ptr::null_mut::<OM_uint32>(),
             )
         };
+        if let Some(new_flags) = CtxFlags::from_bits(flag_bits) {
+            self.flags.insert(new_flags);
+        }
         if gss_error(major) > 0 {
             let e = Error {
                 major: MajorFlags::from_bits_retain(major),

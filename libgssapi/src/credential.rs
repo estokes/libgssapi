@@ -1,14 +1,23 @@
-use crate::{error::{Error, MajorFlags, gss_error}, name::Name, oid::{OidSet, NO_OID_SET}};
+use crate::{
+    error::{gss_error, Error, MajorFlags},
+    name::Name,
+    oid::{Oid, OidSet, NO_OID, NO_OID_SET},
+};
 use libgssapi_sys::{
     gss_OID_set, gss_acquire_cred, gss_cred_id_struct, gss_cred_id_t, gss_cred_usage_t,
-    gss_name_struct, gss_name_t, gss_release_cred, gss_inquire_cred, OM_uint32,
+    gss_inquire_cred, gss_key_value_element_desc, gss_key_value_set_desc,
+    gss_name_struct, gss_name_t, gss_release_cred, gss_store_cred_into, OM_uint32,
     GSS_C_ACCEPT, GSS_C_BOTH, GSS_C_INITIATE, GSS_S_COMPLETE, _GSS_C_INDEFINITE,
 };
 #[cfg(feature = "s4u")]
 use libgssapi_sys::{gss_acquire_cred_impersonate_name, gss_inquire_cred_by_oid};
 #[cfg(feature = "s4u")]
 use crate::{oid::{GSS_NT_HOSTBASED_SERVICE, GSS_KRB5_GET_CRED_IMPERSONATOR}, util::BufSet};
-use std::{ptr, fmt, time::Duration};
+use std::{
+    ffi::{CStr, CString},
+    fmt, ptr,
+    time::Duration,
+};
 
 pub(crate) const NO_CRED: gss_cred_id_t = ptr::null_mut();
 
@@ -167,6 +176,54 @@ impl Cred {
         };
         if major == GSS_S_COMPLETE {
             Ok(Cred(cred))
+        } else {
+            Err(Error {
+                major: MajorFlags::from_bits_retain(major),
+                minor,
+            })
+        }
+    }
+
+    pub fn store(
+        &self,
+        ccache: &str,
+        overwrite: bool,
+        default: bool,
+        usage: CredUsage,
+        desired_mech: Option<&Oid>,
+    ) -> Result<(), Error> {
+        let mut minor = GSS_S_COMPLETE;
+        let usage = usage.to_c();
+        let ccache = CString::new(ccache).map_err(|_| Error {
+            major: MajorFlags::GSS_S_CALL_INACCESSIBLE_READ | MajorFlags::GSS_S_BAD_NAME,
+            minor: 0,
+        })?;
+        let mut elems = gss_key_value_element_desc {
+            key: CStr::from_bytes_with_nul(b"ccache\0").unwrap().as_ptr(),
+            value: ccache.as_ptr(),
+        };
+        let store = gss_key_value_set_desc {
+            count: 1,
+            elements: &mut elems,
+        };
+        let major = unsafe {
+            gss_store_cred_into(
+                &mut minor as *mut OM_uint32,
+                self.to_c(),
+                usage as gss_cred_usage_t,
+                match desired_mech {
+                    None => NO_OID,
+                    Some(desired_mechs) => desired_mechs.to_c(),
+                },
+                overwrite as u32,
+                default as u32,
+                &store,
+                ptr::null_mut::<gss_OID_set>(),
+                ptr::null_mut::<gss_cred_usage_t>(),
+            )
+        };
+        if major == GSS_S_COMPLETE {
+            Ok(())
         } else {
             Err(Error {
                 major: MajorFlags::from_bits_retain(major),
