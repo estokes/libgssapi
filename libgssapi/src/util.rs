@@ -276,6 +276,10 @@ impl Buf {
     pub fn to_bytes(self) -> GssBytes {
         GssBytes { pos: 0, buf: self }
     }
+
+    pub(crate) fn is_null(&self) -> bool {
+        self.0.value.is_null()
+    }
 }
 
 #[derive(Debug)]
