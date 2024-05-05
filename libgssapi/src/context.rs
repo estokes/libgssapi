@@ -572,7 +572,7 @@ impl ServerCtx {
             Ok(Some(out_tok))
         } else {
             self.state = ServerCtxState::Complete;
-            if !out_tok.is_null() {
+            if out_tok.len() > 0 {
                 Ok(Some(out_tok))
             } else {
                 Ok(None)
@@ -794,7 +794,7 @@ impl ClientCtx {
             Ok(Some(out_tok))
         } else {
             self.state = ClientCtxState::Complete;
-            if !out_tok.is_null() {
+            if out_tok.len() > 0 {
                 Ok(Some(out_tok))
             } else {
                 Ok(None)

@@ -9,7 +9,8 @@ use std::{
     ffi,
     marker::PhantomData,
     ops::{Deref, DerefMut, Drop},
-    ptr, slice,
+    ptr::{self, NonNull},
+    slice,
 };
 
 #[cfg(feature = "iov")]
@@ -236,13 +237,25 @@ impl Deref for Buf {
     type Target = [u8];
 
     fn deref(&self) -> &Self::Target {
-        unsafe { slice::from_raw_parts(self.0.value.cast(), self.0.length as usize) }
+        unsafe {
+            if self.0.value.is_null() {
+                slice::from_raw_parts(NonNull::dangling().as_ptr(), 0)
+            } else {
+                slice::from_raw_parts(self.0.value.cast(), self.0.length as usize)
+            }
+        }
     }
 }
 
 impl DerefMut for Buf {
     fn deref_mut(&mut self) -> &mut Self::Target {
-        unsafe { slice::from_raw_parts_mut(self.0.value.cast(), self.0.length as usize) }
+        unsafe {
+            if self.0.value.is_null() {
+                slice::from_raw_parts_mut(NonNull::dangling().as_ptr(), 0)
+            } else {
+                slice::from_raw_parts_mut(self.0.value.cast(), self.0.length as usize)
+            }
+        }
     }
 }
 
@@ -275,10 +288,6 @@ impl Buf {
     /// Wrap this bytes in a structure that implements `bytes::Buf`
     pub fn to_bytes(self) -> GssBytes {
         GssBytes { pos: 0, buf: self }
-    }
-
-    pub(crate) fn is_null(&self) -> bool {
-        self.0.value.is_null()
     }
 }
 
