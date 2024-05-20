@@ -583,6 +583,10 @@ impl ServerCtx {
     pub fn delegated_cred(&self) -> Option<&Cred> {
         self.delegated_cred.as_ref()
     }
+
+    pub fn take_delegated_cred(&mut self) -> Option<Cred> {
+        self.delegated_cred.take()
+    }
 }
 
 impl SecurityContext for ServerCtx {
