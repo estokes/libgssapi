@@ -203,7 +203,11 @@ impl<'a> Deref for BufRef<'a> {
     type Target = [u8];
 
     fn deref(&self) -> &Self::Target {
-        unsafe { slice::from_raw_parts(self.0.value.cast(), self.0.length as usize) }
+        if self.0.value.is_null() && self.0.length == 0 {
+            &[]
+        } else {
+            unsafe { slice::from_raw_parts(self.0.value.cast(), self.0.length as usize) }
+        }
     }
 }
 
@@ -238,7 +242,7 @@ impl Deref for Buf {
 
     fn deref(&self) -> &Self::Target {
         unsafe {
-            if self.0.value.is_null() {
+            if self.0.value.is_null() && self.0.length == 0 {
                 slice::from_raw_parts(NonNull::dangling().as_ptr(), 0)
             } else {
                 slice::from_raw_parts(self.0.value.cast(), self.0.length as usize)
@@ -250,7 +254,7 @@ impl Deref for Buf {
 impl DerefMut for Buf {
     fn deref_mut(&mut self) -> &mut Self::Target {
         unsafe {
-            if self.0.value.is_null() {
+            if self.0.value.is_null() && self.0.length == 0 {
                 slice::from_raw_parts_mut(NonNull::dangling().as_ptr(), 0)
             } else {
                 slice::from_raw_parts_mut(self.0.value.cast(), self.0.length as usize)
