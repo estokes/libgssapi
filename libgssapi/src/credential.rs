@@ -1,23 +1,26 @@
 use crate::{
     error::{gss_error, Error, MajorFlags},
     name::Name,
-    oid::{Oid, OidSet, NO_OID, NO_OID_SET},
+    oid::{OidSet, NO_OID_SET},
+};
+#[cfg(feature = "s4u")]
+use crate::{
+    oid::{Oid, GSS_KRB5_GET_CRED_IMPERSONATOR, GSS_NT_HOSTBASED_SERVICE, NO_OID},
+    util::BufSet,
 };
 use libgssapi_sys::{
     gss_OID_set, gss_acquire_cred, gss_cred_id_struct, gss_cred_id_t, gss_cred_usage_t,
-    gss_inquire_cred, gss_key_value_element_desc, gss_key_value_set_desc,
-    gss_name_struct, gss_name_t, gss_release_cred, gss_store_cred_into, OM_uint32,
+    gss_inquire_cred, gss_name_struct, gss_name_t, gss_release_cred, OM_uint32,
     GSS_C_ACCEPT, GSS_C_BOTH, GSS_C_INITIATE, GSS_S_COMPLETE, _GSS_C_INDEFINITE,
 };
 #[cfg(feature = "s4u")]
-use libgssapi_sys::{gss_acquire_cred_impersonate_name, gss_inquire_cred_by_oid};
-#[cfg(feature = "s4u")]
-use crate::{oid::{GSS_NT_HOSTBASED_SERVICE, GSS_KRB5_GET_CRED_IMPERSONATOR}, util::BufSet};
-use std::{
-    ffi::{CStr, CString},
-    fmt, ptr,
-    time::Duration,
+use libgssapi_sys::{
+    gss_acquire_cred_impersonate_name, gss_inquire_cred_by_oid,
+    gss_key_value_element_desc, gss_key_value_set_desc, gss_store_cred_into,
 };
+#[cfg(feature = "s4u")]
+use std::ffi::{CStr, CString};
+use std::{fmt, ptr, time::Duration};
 
 pub(crate) const NO_CRED: gss_cred_id_t = ptr::null_mut();
 
@@ -184,6 +187,7 @@ impl Cred {
         }
     }
 
+    #[cfg(feature = "s4u")]
     pub fn store(
         &self,
         ccache: &str,
