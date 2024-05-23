@@ -1,3 +1,10 @@
+0.7.1
+
+- merge #20 add oid for enterprise principal name
+- merge #21 add support for storing delegated credentials
+- merge #23 fix Buf with zero size on rust > 1.78
+- merge #24 allow taking credentials from ServerCtx
+
 0.7.0
 
 - merge #19 use package-config if available to find gssapi
