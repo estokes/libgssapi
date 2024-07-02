@@ -141,8 +141,10 @@ impl Deref for Oid {
     type Target = [u8];
 
     fn deref(&self) -> &Self::Target {
-        unsafe {
-            slice::from_raw_parts(self.0.elements as *const u8, self.0.length as usize)
+        if self.0.elements.is_null() && self.0.length == 0 {
+            &[]
+        } else {
+            unsafe { slice::from_raw_parts(self.0.elements.cast(), self.0.length as usize) }
         }
     }
 }
