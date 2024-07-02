@@ -40,7 +40,7 @@ fn setup_client_ctx(
         client_cred.info()?
     );
     Ok(ClientCtx::new(
-        client_cred,
+        Some(client_cred),
         service_name,
         CtxFlags::GSS_C_MUTUAL_FLAG,
         Some(&GSS_MECH_KRB5),
