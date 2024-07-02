@@ -117,14 +117,24 @@ mod iov {
 
         fn deref(&self) -> &Self::Target {
             let buf = self.0.buffer;
-            unsafe { slice::from_raw_parts(buf.value.cast(), buf.length as usize) }
+            if buf.value.is_null() && buf.length == 0 {
+                &[]
+            } else {
+                unsafe { slice::from_raw_parts(buf.value.cast(), buf.length as usize) }
+            }
         }
     }
 
     impl<'a> DerefMut for GssIov<'a> {
         fn deref_mut(&mut self) -> &mut Self::Target {
             let buf = self.0.buffer;
-            unsafe { slice::from_raw_parts_mut(buf.value.cast(), buf.length as usize) }
+            unsafe {
+                if buf.value.is_null() && buf.length == 0 {
+                    slice::from_raw_parts_mut(NonNull::dangling().as_ptr(), 0)
+                } else {
+                    slice::from_raw_parts_mut(buf.value.cast(), buf.length as usize)
+                }
+            }
         }
     }
 
