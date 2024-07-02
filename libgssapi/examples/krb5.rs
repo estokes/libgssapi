@@ -108,7 +108,7 @@ fn setup_client_ctx(
     )?;
     println!("acquired default client credentials: {:#?}", client_cred.info()?);
     Ok(ClientCtx::new(
-        client_cred, service_name, CtxFlags::GSS_C_MUTUAL_FLAG, Some(&GSS_MECH_KRB5)
+        Some(client_cred), service_name, CtxFlags::GSS_C_MUTUAL_FLAG, Some(&GSS_MECH_KRB5)
     ))
 }
 
