@@ -54,7 +54,7 @@
 //!         None, None, CredUsage::Initiate, Some(&desired_mechs)
 //!     )?;
 //!     Ok(ClientCtx::new(
-//!         client_cred, service_name, CtxFlags::GSS_C_MUTUAL_FLAG, Some(&GSS_MECH_KRB5)
+//!         Some(client_cred), service_name, CtxFlags::GSS_C_MUTUAL_FLAG, Some(&GSS_MECH_KRB5)
 //!     ))
 //! }
 //! 
