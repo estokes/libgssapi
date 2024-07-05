@@ -9,8 +9,7 @@ use std::{
     ffi,
     marker::PhantomData,
     ops::{Deref, DerefMut, Drop},
-    ptr::{self, NonNull},
-    slice,
+    ptr, slice,
 };
 
 #[cfg(feature = "iov")]
@@ -361,7 +360,12 @@ mod s4u {
             if self.0.is_null() && (*self.0).count == 0 {
                 &[]
             } else {
-                unsafe { slice::from_raw_parts((*self.0).elements.cast(), (*self.0).count as usize) }
+                unsafe {
+                    slice::from_raw_parts(
+                        (*self.0).elements.cast(),
+                        (*self.0).count as usize,
+                    )
+                }
             }
         }
     }
@@ -371,7 +375,12 @@ mod s4u {
             if self.0.is_null() && (*self.0).count == 0 {
                 &mut []
             } else {
-                unsafe { slice::from_raw_parts_mut((*self.0).elements.cast(), (*self.0).count as usize) }
+                unsafe {
+                    slice::from_raw_parts_mut(
+                        (*self.0).elements.cast(),
+                        (*self.0).count as usize,
+                    )
+                }
             }
         }
     }
@@ -381,10 +390,7 @@ mod s4u {
             if !self.0.is_null() {
                 let mut minor = GSS_S_COMPLETE;
                 let _major = unsafe {
-                    gss_release_buffer_set(
-                        &mut minor as *mut OM_uint32,
-                        &mut self.0,
-                    )
+                    gss_release_buffer_set(&mut minor as *mut OM_uint32, &mut self.0)
                 };
             }
         }

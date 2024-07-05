@@ -1,3 +1,9 @@
+0.7.2
+
+- merge #25 and #26
+- audit all uses of slice::from_raw_parts* and harmonize them to only return an 
+  empty slice on a null pointer if the count is 0
+
 0.7.1
 
 - merge #20 add oid for enterprise principal name
