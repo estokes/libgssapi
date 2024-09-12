@@ -1,3 +1,7 @@
+0.8.0
+
+- make server credentials optional (fix #27)
+
 0.7.2
 
 - merge #25 and #26

@@ -20,7 +20,7 @@ use libgssapi_sys::{
 use libgssapi_sys::{
     gss_iov_buffer_desc, gss_unwrap_iov, gss_wrap_iov, gss_wrap_iov_length,
 };
-use std::{ffi, ptr, time::Duration, os::raw::c_int};
+use std::{ffi, os::raw::c_int, ptr, time::Duration};
 
 bitflags! {
     #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -483,7 +483,7 @@ enum ServerCtxState {
 #[derive(Debug)]
 pub struct ServerCtx {
     ctx: gss_ctx_id_t,
-    cred: Cred,
+    cred: Option<Cred>,
     delegated_cred: Option<Cred>,
     flags: CtxFlags,
     state: ServerCtxState,
@@ -503,7 +503,7 @@ impl ServerCtx {
     /// credentials. You must then call `step` until the context is
     /// fully initialized. The mechanism is not specified because it
     /// is dictated by the client.
-    pub fn new(cred: Cred) -> ServerCtx {
+    pub fn new(cred: Option<Cred>) -> ServerCtx {
         ServerCtx {
             ctx: ptr::null_mut(),
             cred,
@@ -534,7 +534,10 @@ impl ServerCtx {
             gss_accept_sec_context(
                 &mut minor as *mut OM_uint32,
                 &mut self.ctx as *mut gss_ctx_id_t,
-                self.cred.to_c(),
+                match &self.cred {
+                    None => NO_CRED,
+                    Some(cred) => cred.to_c(),
+                },
                 tok.to_c(),
                 ptr::null_mut::<gss_channel_bindings_struct>(),
                 ptr::null_mut::<gss_name_t>(),
