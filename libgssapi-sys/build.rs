@@ -19,8 +19,11 @@ enum Gssapi {
 }
 
 fn builder_from_pkgconfig(lib: pkg_config::Library) -> bindgen::Builder {
-    bindgen::Builder::default()
-        .clang_args(lib.include_paths.iter().map(|path| format!("-I{}", path.to_string_lossy())))
+    bindgen::Builder::default().clang_args(
+        lib.include_paths
+            .iter()
+            .map(|path| format!("-I{}", path.to_string_lossy())),
+    )
 }
 
 fn try_pkgconfig() -> Result<(Gssapi, bindgen::Builder), pkg_config::Error> {
@@ -29,17 +32,20 @@ fn try_pkgconfig() -> Result<(Gssapi, bindgen::Builder), pkg_config::Error> {
         Err(_) => match pkg_config::probe_library("heimdal-gssapi") {
             Ok(lib) => Ok((Gssapi::Heimdal, builder_from_pkgconfig(lib))),
             Err(lib) => Err(lib),
-        }
+        },
     }
 }
 
 fn which() -> Gssapi {
-    if cfg!(target_os = "macos") {
+    let target_os = env::var("CARGO_CFG_TARGET_OS").unwrap();
+    let target_family = env::var("CARGO_CFG_TARGET_FAMILY").unwrap();
+
+    if target_os == "macos" {
         println!("cargo:rustc-link-lib=framework=GSS");
         return Gssapi::Apple;
-    } else if cfg!(target_os = "windows") {
+    } else if target_os == "windows" {
         panic!("use SSPI on windows")
-    } else if cfg!(target_family = "unix") {
+    } else if target_family == "unix" {
         let ldpath = env::var("LD_LIBRARY_PATH").unwrap_or(String::new());
         let paths = vec!["/lib", "/lib64", "/usr/lib", "/usr/lib64"];
         let krb5_path = Command::new("krb5-config")
@@ -69,9 +75,11 @@ fn which() -> Gssapi {
 }
 
 fn main() {
-    let (imp, builder) = match try_pkgconfig() {
-        Ok((imp, builder)) => (imp, builder),
-        Err(_) => {
+    let cross_compile = env::var("HOST").unwrap() != env::var("TARGET").unwrap();
+
+    let (imp, builder) = match (cross_compile, try_pkgconfig()) {
+        (false, Ok((imp, builder))) => (imp, builder),
+        _ => {
             let imp = which();
             let builder = bindgen::Builder::default();
             let nix_cflags = env::var("NIX_CFLAGS_COMPILE");
