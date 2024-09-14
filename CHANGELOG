@@ -1,3 +1,7 @@
+0.8.1:
+- merge #28, cross compilation support
+- add workspace back, whatever cargo bug that made it break before is fixed now
+
 0.8.0
 
 - make server credentials optional (fix #27)
