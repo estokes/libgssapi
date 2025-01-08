@@ -1,3 +1,7 @@
+0.8.2:
+- fix wrong checks for an empty buffer set in deref impls for the s4u
+  feature. Fixes #30.
+
 0.8.1:
 - merge #28, cross compilation support
 - add workspace back, whatever cargo bug that made it break before is fixed now
