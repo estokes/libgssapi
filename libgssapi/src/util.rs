@@ -357,10 +357,12 @@ mod s4u {
         type Target = [BufRef<'a>];
 
         fn deref(&self) -> &'a Self::Target {
-            if self.0.is_null() && (*self.0).count == 0 {
-                &[]
-            } else {
-                unsafe {
+            unsafe {
+                if self.0.is_null()
+                    || ((*self.0).elements.is_null() && (*self.0).count == 0)
+                {
+                    &[]
+                } else {
                     slice::from_raw_parts(
                         (*self.0).elements.cast(),
                         (*self.0).count as usize,
@@ -372,10 +374,12 @@ mod s4u {
 
     impl<'a> DerefMut for BufSet<'a> {
         fn deref_mut(&mut self) -> &'a mut Self::Target {
-            if self.0.is_null() && (*self.0).count == 0 {
-                &mut []
-            } else {
-                unsafe {
+            unsafe {
+                if self.0.is_null()
+                    || ((*self.0).elements.is_null() && (*self.0).count == 0)
+                {
+                    &mut []
+                } else {
                     slice::from_raw_parts_mut(
                         (*self.0).elements.cast(),
                         (*self.0).count as usize,
