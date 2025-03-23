@@ -2,7 +2,7 @@ use crate::{
     error::{gss_error, Error, MajorFlags},
     name::Name,
     oid::{OidSet, NO_OID_SET},
-    util::BufRef
+    util::BufRef,
 };
 #[cfg(feature = "s4u")]
 use crate::{
@@ -158,7 +158,9 @@ impl Cred {
         }
     }
 
-    pub fn pass_acquire(
+    /// Acquire gssapi credentials using a password. Otherwise the
+    /// same as acquire.
+    pub fn acquire_with_password(
         name: Option<&Name>,
         password: &str,
         time_req: Option<Duration>,
@@ -200,6 +202,8 @@ impl Cred {
         }
     }
 
+    /// Request a ticket from the kdc to impersonate the specified
+    /// name
     #[cfg(feature = "s4u")]
     pub fn impersonate(
         &self,
