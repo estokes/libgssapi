@@ -2,6 +2,7 @@ use crate::{
     error::{gss_error, Error, MajorFlags},
     name::Name,
     oid::{OidSet, NO_OID_SET},
+    util::BufRef
 };
 #[cfg(feature = "s4u")]
 use crate::{
@@ -9,9 +10,10 @@ use crate::{
     util::BufSet,
 };
 use libgssapi_sys::{
-    gss_OID_set, gss_acquire_cred, gss_cred_id_struct, gss_cred_id_t, gss_cred_usage_t,
-    gss_inquire_cred, gss_name_struct, gss_name_t, gss_release_cred, OM_uint32,
-    GSS_C_ACCEPT, GSS_C_BOTH, GSS_C_INITIATE, GSS_S_COMPLETE, _GSS_C_INDEFINITE,
+    gss_OID_set, gss_acquire_cred, gss_acquire_cred_with_password, gss_cred_id_struct,
+    gss_cred_id_t, gss_cred_usage_t, gss_inquire_cred, gss_name_struct, gss_name_t,
+    gss_release_cred, OM_uint32, GSS_C_ACCEPT, GSS_C_BOTH, GSS_C_INITIATE,
+    GSS_S_COMPLETE, _GSS_C_INDEFINITE,
 };
 #[cfg(feature = "s4u")]
 use libgssapi_sys::{
@@ -64,7 +66,12 @@ impl CredUsage {
             GSS_C_BOTH => Ok(CredUsage::Both),
             GSS_C_INITIATE => Ok(CredUsage::Initiate),
             GSS_C_ACCEPT => Ok(CredUsage::Accept),
-            _ => return Err(Error {major: MajorFlags::GSS_S_FAILURE, minor: 0})
+            _ => {
+                return Err(Error {
+                    major: MajorFlags::GSS_S_FAILURE,
+                    minor: 0,
+                })
+            }
         }
     }
 
@@ -101,7 +108,7 @@ impl fmt::Debug for Cred {
     fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
         match self.info() {
             Err(e) => write!(f, "error getting credential info {}", e),
-            Ok(ifo) => write!(f, "{:?}", ifo)
+            Ok(ifo) => write!(f, "{:?}", ifo),
         }
     }
 }
@@ -117,7 +124,9 @@ impl Cred {
         usage: CredUsage,
         desired_mechs: Option<&OidSet>,
     ) -> Result<Cred, Error> {
-        let time_req = time_req.map(|d| d.as_secs() as u32).unwrap_or(_GSS_C_INDEFINITE);
+        let time_req = time_req
+            .map(|d| d.as_secs() as u32)
+            .unwrap_or(_GSS_C_INDEFINITE);
         let mut minor = GSS_S_COMPLETE;
         let usage = usage.to_c();
         let mut cred = ptr::null_mut::<gss_cred_id_struct>();
@@ -126,12 +135,12 @@ impl Cred {
                 &mut minor as *mut OM_uint32,
                 match name {
                     None => ptr::null_mut::<gss_name_struct>(),
-                    Some(n) => n.to_c()
+                    Some(n) => n.to_c(),
                 },
                 time_req,
                 match desired_mechs {
                     None => NO_OID_SET,
-                    Some(desired_mechs) => desired_mechs.to_c()
+                    Some(desired_mechs) => desired_mechs.to_c(),
                 },
                 usage as gss_cred_usage_t,
                 &mut cred as *mut gss_cred_id_t,
@@ -144,7 +153,49 @@ impl Cred {
         } else {
             Err(Error {
                 major: MajorFlags::from_bits_retain(major),
-                minor
+                minor,
+            })
+        }
+    }
+
+    pub fn pass_acquire(
+        name: Option<&Name>,
+        password: &str,
+        time_req: Option<Duration>,
+        usage: CredUsage,
+        desired_mechs: Option<&OidSet>,
+    ) -> Result<Cred, Error> {
+        let time_req = time_req
+            .map(|d| d.as_secs() as u32)
+            .unwrap_or(_GSS_C_INDEFINITE);
+        let mut minor = GSS_S_COMPLETE;
+        let usage = usage.to_c();
+        let mut cred = ptr::null_mut::<gss_cred_id_struct>();
+        let major = unsafe {
+            gss_acquire_cred_with_password(
+                &mut minor as *mut OM_uint32,
+                match name {
+                    None => ptr::null_mut::<gss_name_struct>(),
+                    Some(n) => n.to_c(),
+                },
+                BufRef::from(password.as_bytes()).to_c(),
+                time_req,
+                match desired_mechs {
+                    None => NO_OID_SET,
+                    Some(desired_mechs) => desired_mechs.to_c(),
+                },
+                usage as gss_cred_usage_t,
+                &mut cred as *mut gss_cred_id_t,
+                ptr::null_mut::<gss_OID_set>(),
+                ptr::null_mut::<OM_uint32>(),
+            )
+        };
+        if major == GSS_S_COMPLETE {
+            Ok(Cred(cred))
+        } else {
+            Err(Error {
+                major: MajorFlags::from_bits_retain(major),
+                minor,
             })
         }
     }
@@ -157,7 +208,9 @@ impl Cred {
         usage: CredUsage,
         desired_mechs: Option<&OidSet>,
     ) -> Result<Cred, Error> {
-        let time_req = time_req.map(|d| d.as_secs() as u32).unwrap_or(_GSS_C_INDEFINITE);
+        let time_req = time_req
+            .map(|d| d.as_secs() as u32)
+            .unwrap_or(_GSS_C_INDEFINITE);
         let mut minor = GSS_S_COMPLETE;
         let usage = usage.to_c();
         let mut cred = ptr::null_mut::<gss_cred_id_struct>();
@@ -169,7 +222,7 @@ impl Cred {
                 time_req,
                 match desired_mechs {
                     None => NO_OID_SET,
-                    Some(desired_mechs) => desired_mechs.to_c()
+                    Some(desired_mechs) => desired_mechs.to_c(),
                 },
                 usage as gss_cred_usage_t,
                 &mut cred as *mut gss_cred_id_t,
@@ -251,20 +304,20 @@ impl Cred {
             self.0,
             match ifo.name {
                 None => ptr::null_mut::<gss_name_t>(),
-                Some(ref mut n) => n as *mut gss_name_t
+                Some(ref mut n) => n as *mut gss_name_t,
             },
             match ifo.lifetime {
                 None => ptr::null_mut::<u32>(),
-                Some(ref mut l) => l as *mut OM_uint32
+                Some(ref mut l) => l as *mut OM_uint32,
             },
             match ifo.usage {
                 None => ptr::null_mut::<i32>(),
-                Some(ref mut u) => u as *mut gss_cred_usage_t
+                Some(ref mut u) => u as *mut gss_cred_usage_t,
             },
             match ifo.mechanisms {
                 None => ptr::null_mut::<gss_OID_set>(),
-                Some(ref mut s) => s as *mut gss_OID_set
-            }
+                Some(ref mut s) => s as *mut gss_OID_set,
+            },
         );
         if gss_error(major) > 0 {
             // make sure we free anything that was successfully built
@@ -274,7 +327,10 @@ impl Cred {
             if let Some(s) = ifo.mechanisms {
                 OidSet::from_c(s);
             }
-            Err(Error { major: MajorFlags::from_bits_retain(major), minor })
+            Err(Error {
+                major: MajorFlags::from_bits_retain(major),
+                minor,
+            })
         } else {
             Ok(ifo)
         }
@@ -294,7 +350,7 @@ impl Cred {
                 proxy: self.proxy()?,
                 lifetime: Duration::from_secs(c.lifetime.unwrap() as u64),
                 usage: CredUsage::from_c(c.usage.unwrap())?,
-                mechanisms: OidSet::from_c(c.mechanisms.unwrap())
+                mechanisms: OidSet::from_c(c.mechanisms.unwrap()),
             })
         }
     }
@@ -304,7 +360,7 @@ impl Cred {
         unsafe {
             let c = self.info_c(CredInfoC {
                 name: Some(ptr::null_mut()),
-                .. CredInfoC::empty()
+                ..CredInfoC::empty()
             })?;
             Ok(Name::from_c(c.name.unwrap()))
         }
@@ -344,7 +400,7 @@ impl Cred {
         unsafe {
             let c = self.info_c(CredInfoC {
                 lifetime: Some(0),
-                .. CredInfoC::empty()
+                ..CredInfoC::empty()
             })?;
             Ok(Duration::from_secs(c.lifetime.unwrap() as u64))
         }
@@ -355,7 +411,7 @@ impl Cred {
         unsafe {
             let c = self.info_c(CredInfoC {
                 usage: Some(0),
-                .. CredInfoC::empty()
+                ..CredInfoC::empty()
             })?;
             Ok(CredUsage::from_c(c.usage.unwrap())?)
         }
@@ -366,7 +422,7 @@ impl Cred {
         unsafe {
             let c = self.info_c(CredInfoC {
                 mechanisms: Some(ptr::null_mut()),
-                .. CredInfoC::empty()
+                ..CredInfoC::empty()
             })?;
             Ok(OidSet::from_c(c.mechanisms.unwrap()))
         }

@@ -96,7 +96,7 @@ fn setup_server_ctx(
         Some(&cname), None, CredUsage::Accept, Some(desired_mechs)
     )?;
     println!("acquired server credentials: {:#?}", server_cred.info()?);
-    Ok((ServerCtx::new(server_cred), cname))
+    Ok((ServerCtx::new(Some(server_cred)), cname))
 }
 
 fn setup_client_ctx(
