@@ -1,3 +1,7 @@
+0.8.3:
+- merge #32, add support for acquiring credentials with a password
+- add some documentation
+
 0.8.2:
 - fix wrong checks for an empty buffer set in deref impls for the s4u
   feature. Fixes #30.
