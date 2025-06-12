@@ -1,3 +1,9 @@
+0.9.0
+- Cred is now clonable
+- Cred::store is renamed to Cred::store_into
+- new Cred::store for storing credentials in the default cache, not
+  feature guarded since it uses an older interface that works on Mac OS
+
 0.8.2:
 - fix wrong checks for an empty buffer set in deref impls for the s4u
   feature. Fixes #30.
