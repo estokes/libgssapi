@@ -6,15 +6,10 @@ use crate::{
 };
 #[cfg(feature = "s4u")]
 use crate::{
-    oid::{Oid, GSS_KRB5_GET_CRED_IMPERSONATOR, GSS_NT_HOSTBASED_SERVICE, NO_OID},
+    oid::{GSS_KRB5_GET_CRED_IMPERSONATOR, GSS_NT_HOSTBASED_SERVICE},
     util::BufSet,
 };
-use libgssapi_sys::{
-    gss_OID_set, gss_acquire_cred, gss_acquire_cred_with_password, gss_cred_id_struct,
-    gss_cred_id_t, gss_cred_usage_t, gss_inquire_cred, gss_name_struct, gss_name_t,
-    gss_release_cred, OM_uint32, GSS_C_ACCEPT, GSS_C_BOTH, GSS_C_INITIATE,
-    GSS_S_COMPLETE, _GSS_C_INDEFINITE,
-};
+use libgssapi_sys::{gss_OID_set, gss_acquire_cred, gss_acquire_cred_with_password, gss_cred_id_struct, gss_cred_id_t, gss_cred_usage_t, gss_inquire_cred, gss_name_struct, gss_name_t, gss_release_cred, gss_store_cred, OM_uint32, GSS_C_ACCEPT, GSS_C_BOTH, GSS_C_INITIATE, GSS_S_COMPLETE, _GSS_C_INDEFINITE};
 #[cfg(feature = "s4u")]
 use libgssapi_sys::{
     gss_acquire_cred_impersonate_name, gss_inquire_cred_by_oid,
@@ -23,6 +18,9 @@ use libgssapi_sys::{
 #[cfg(feature = "s4u")]
 use std::ffi::{CStr, CString};
 use std::{fmt, ptr, time::Duration};
+use std::ffi::c_int;
+use std::sync::Arc;
+use crate::oid::{Oid, NO_OID};
 
 pub(crate) const NO_CRED: gss_cred_id_t = ptr::null_mut();
 
@@ -66,12 +64,10 @@ impl CredUsage {
             GSS_C_BOTH => Ok(CredUsage::Both),
             GSS_C_INITIATE => Ok(CredUsage::Initiate),
             GSS_C_ACCEPT => Ok(CredUsage::Accept),
-            _ => {
-                return Err(Error {
+            _ => Err(Error {
                     major: MajorFlags::GSS_S_FAILURE,
                     minor: 0,
                 })
-            }
         }
     }
 
@@ -85,9 +81,16 @@ impl CredUsage {
 }
 
 /// gssapi credentials.
-pub struct Cred(gss_cred_id_t);
+#[derive(Clone)]
+pub struct Cred(Arc<InnerCred>);
+impl From<gss_cred_id_t> for Cred {
+    fn from(id: gss_cred_id_t) -> Self {
+        Cred(Arc::new(InnerCred(id)))
+    }
+}
+struct InnerCred(gss_cred_id_t);
 
-impl Drop for Cred {
+impl Drop for InnerCred {
     fn drop(&mut self) {
         if !self.0.is_null() {
             let mut minor = GSS_S_COMPLETE;
@@ -101,8 +104,8 @@ impl Drop for Cred {
     }
 }
 
-unsafe impl Send for Cred {}
-unsafe impl Sync for Cred {}
+unsafe impl Send for InnerCred {}
+unsafe impl Sync for InnerCred {}
 
 impl fmt::Debug for Cred {
     fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
@@ -149,7 +152,7 @@ impl Cred {
             )
         };
         if major == GSS_S_COMPLETE {
-            Ok(Cred(cred))
+            Ok(Cred::from(cred))
         } else {
             Err(Error {
                 major: MajorFlags::from_bits_retain(major),
@@ -191,7 +194,7 @@ impl Cred {
             )
         };
         if major == GSS_S_COMPLETE {
-            Ok(Cred(cred))
+            Ok(Cred::from(cred))
         } else {
             Err(Error {
                 major: MajorFlags::from_bits_retain(major),
@@ -231,7 +234,7 @@ impl Cred {
             )
         };
         if major == GSS_S_COMPLETE {
-            Ok(Cred(cred))
+            Ok(Cred::from(cred))
         } else {
             Err(Error {
                 major: MajorFlags::from_bits_retain(major),
@@ -289,19 +292,55 @@ impl Cred {
         }
     }
 
+    /// Copies credentials into default credentials cache.
+    pub fn gss_store(
+        &self,
+        overwrite: bool,
+        default: bool,
+        usage: CredUsage,
+        desired_mech: Option<&Oid>,
+    ) -> Result<(OidSet, CredUsage), Error> {
+        let mut minor = GSS_S_COMPLETE;
+        let elements_stored = OidSet::new()?;
+        let res_usage = CredUsage::Both.to_c();
+        let major = unsafe {
+            gss_store_cred(
+                &mut minor as *mut OM_uint32,
+                self.to_c(),
+                usage.to_c() as gss_cred_usage_t,
+                match desired_mech {
+                    None => NO_OID,
+                    Some(desired_mechs) => desired_mechs.to_c(),
+                },
+                overwrite as u32,
+                default as u32,
+                &mut elements_stored.to_c(),
+                &mut (res_usage as c_int) as *mut gss_cred_usage_t,
+            )
+        };
+        if major == GSS_S_COMPLETE {
+            Ok((elements_stored, CredUsage::from_c(res_usage as i32)?))
+        } else {
+            Err(Error {
+                major: MajorFlags::from_bits_retain(major),
+                minor,
+            })
+        }
+    }
+
     pub(crate) unsafe fn from_c(cred: gss_cred_id_t) -> Cred {
-        Cred(cred)
+        Cred::from(cred)
     }
 
     pub(crate) unsafe fn to_c(&self) -> gss_cred_id_t {
-        self.0
+        self.0.0
     }
 
     unsafe fn info_c(&self, mut ifo: CredInfoC) -> Result<CredInfoC, Error> {
         let mut minor: u32 = 0;
         let major = gss_inquire_cred(
             &mut minor as *mut OM_uint32,
-            self.0,
+            self.0.0,
             match ifo.name {
                 None => ptr::null_mut::<gss_name_t>(),
                 Some(ref mut n) => n as *mut gss_name_t,
@@ -374,7 +413,7 @@ impl Cred {
             let mut minor: u32 = 0;
             let major = gss_inquire_cred_by_oid(
                 &mut minor as *mut OM_uint32,
-                self.0,
+                self.0.0,
                 GSS_KRB5_GET_CRED_IMPERSONATOR.to_c(),
                 out.to_c(),
             );
@@ -426,5 +465,23 @@ impl Cred {
             })?;
             Ok(OidSet::from_c(c.mechanisms.unwrap()))
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_acquire() {
+        Cred::acquire(None, None, CredUsage::Both, None)
+            .expect("Failed to acquire credential");
+    }
+
+    #[test]
+    fn test_gss_store() {
+        let c = unsafe { Cred::from_c(NO_CRED) };
+        c.gss_store(true, true, CredUsage::Both, None)
+            .expect_err("Expected error when storing empty credential");
     }
 }
