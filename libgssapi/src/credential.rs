@@ -1,15 +1,21 @@
 use crate::{
-    error::{gss_error, Error, MajorFlags},
+    error::{Error, MajorFlags, gss_error},
     name::Name,
-    oid::{OidSet, NO_OID_SET},
-    util::BufRef
+    oid::{NO_OID, Oid},
+    oid::{NO_OID_SET, OidSet},
+    util::BufRef,
 };
 #[cfg(feature = "s4u")]
 use crate::{
     oid::{GSS_KRB5_GET_CRED_IMPERSONATOR, GSS_NT_HOSTBASED_SERVICE},
     util::BufSet,
 };
-use libgssapi_sys::{gss_OID_set, gss_acquire_cred, gss_acquire_cred_with_password, gss_cred_id_struct, gss_cred_id_t, gss_cred_usage_t, gss_inquire_cred, gss_name_struct, gss_name_t, gss_release_cred, gss_store_cred, OM_uint32, GSS_C_ACCEPT, GSS_C_BOTH, GSS_C_INITIATE, GSS_S_COMPLETE, _GSS_C_INDEFINITE};
+use libgssapi_sys::{
+    _GSS_C_INDEFINITE, GSS_C_ACCEPT, GSS_C_BOTH, GSS_C_INITIATE, GSS_S_COMPLETE,
+    OM_uint32, gss_OID_set, gss_acquire_cred, gss_acquire_cred_with_password,
+    gss_cred_id_struct, gss_cred_id_t, gss_cred_usage_t, gss_inquire_cred,
+    gss_name_struct, gss_name_t, gss_release_cred, gss_store_cred,
+};
 #[cfg(feature = "s4u")]
 use libgssapi_sys::{
     gss_acquire_cred_impersonate_name, gss_inquire_cred_by_oid,
@@ -17,10 +23,7 @@ use libgssapi_sys::{
 };
 #[cfg(feature = "s4u")]
 use std::ffi::{CStr, CString};
-use std::{fmt, ptr, time::Duration};
-use std::ffi::c_int;
-use std::sync::Arc;
-use crate::oid::{Oid, NO_OID};
+use std::{ffi::c_int, fmt, ptr, sync::Arc, time::Duration};
 
 pub(crate) const NO_CRED: gss_cred_id_t = ptr::null_mut();
 
@@ -65,9 +68,9 @@ impl CredUsage {
             GSS_C_INITIATE => Ok(CredUsage::Initiate),
             GSS_C_ACCEPT => Ok(CredUsage::Accept),
             _ => Err(Error {
-                    major: MajorFlags::GSS_S_FAILURE,
-                    minor: 0,
-                })
+                major: MajorFlags::GSS_S_FAILURE,
+                minor: 0,
+            }),
         }
     }
 
@@ -80,17 +83,9 @@ impl CredUsage {
     }
 }
 
-/// gssapi credentials.
-#[derive(Clone)]
-pub struct Cred(Arc<InnerCred>);
-impl From<gss_cred_id_t> for Cred {
-    fn from(id: gss_cred_id_t) -> Self {
-        Cred(Arc::new(InnerCred(id)))
-    }
-}
-struct InnerCred(gss_cred_id_t);
+struct CredInner(gss_cred_id_t);
 
-impl Drop for InnerCred {
+impl Drop for CredInner {
     fn drop(&mut self) {
         if !self.0.is_null() {
             let mut minor = GSS_S_COMPLETE;
@@ -104,8 +99,18 @@ impl Drop for InnerCred {
     }
 }
 
-unsafe impl Send for InnerCred {}
-unsafe impl Sync for InnerCred {}
+unsafe impl Send for CredInner {}
+unsafe impl Sync for CredInner {}
+
+/// gssapi credentials.
+#[derive(Clone)]
+pub struct Cred(Arc<CredInner>);
+
+impl From<gss_cred_id_t> for Cred {
+    fn from(id: gss_cred_id_t) -> Self {
+        Cred(Arc::new(CredInner(id)))
+    }
+}
 
 impl fmt::Debug for Cred {
     fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
@@ -161,7 +166,7 @@ impl Cred {
         }
     }
 
-    pub fn pass_acquire(
+    pub fn acquire_with_password(
         name: Option<&Name>,
         password: &str,
         time_req: Option<Duration>,
@@ -243,8 +248,9 @@ impl Cred {
         }
     }
 
+    /// Store the credential into the specified credential cache
     #[cfg(feature = "s4u")]
-    pub fn store(
+    pub fn store_into(
         &self,
         ccache: &str,
         overwrite: bool,
@@ -292,8 +298,8 @@ impl Cred {
         }
     }
 
-    /// Copies credentials into default credentials cache.
-    pub fn gss_store(
+    /// Store the credential into default credentials cache. See gss_store_cred.
+    pub fn store(
         &self,
         overwrite: bool,
         default: bool,
@@ -481,7 +487,7 @@ mod tests {
     #[test]
     fn test_gss_store() {
         let c = unsafe { Cred::from_c(NO_CRED) };
-        c.gss_store(true, true, CredUsage::Both, None)
+        c.store_default(true, true, CredUsage::Both, None)
             .expect_err("Expected error when storing empty credential");
     }
 }
