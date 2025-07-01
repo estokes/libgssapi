@@ -1,7 +1,7 @@
 use crate::{
-    error::{Error, MajorFlags, gss_error},
+    error::{gss_error, Error, MajorFlags},
     name::Name,
-    oid::{NO_OID_SET, OidSet},
+    oid::{OidSet, NO_OID_SET},
     util::BufRef,
 };
 #[cfg(feature = "s4u")]
@@ -10,10 +10,10 @@ use crate::{
     util::BufSet,
 };
 use libgssapi_sys::{
-    _GSS_C_INDEFINITE, GSS_C_ACCEPT, GSS_C_BOTH, GSS_C_INITIATE, GSS_S_COMPLETE,
-    OM_uint32, gss_OID_set, gss_acquire_cred, gss_acquire_cred_with_password,
-    gss_cred_id_struct, gss_cred_id_t, gss_cred_usage_t, gss_inquire_cred,
-    gss_name_struct, gss_name_t, gss_release_cred,
+    gss_OID_set, gss_acquire_cred, gss_acquire_cred_with_password, gss_cred_id_struct,
+    gss_cred_id_t, gss_cred_usage_t, gss_inquire_cred, gss_name_struct, gss_name_t,
+    gss_release_cred, OM_uint32, GSS_C_ACCEPT, GSS_C_BOTH, GSS_C_INITIATE,
+    GSS_S_COMPLETE, _GSS_C_INDEFINITE,
 };
 #[cfg(feature = "s4u")]
 use libgssapi_sys::{
@@ -24,12 +24,12 @@ use libgssapi_sys::{
 use std::ffi::{CStr, CString};
 use std::{fmt, ptr, sync::Arc, time::Duration};
 
-#[cfg(not(target_os = "macos"))]
-use std::ffi::c_int;
-#[cfg(not(target_os = "macos"))]
+#[cfg(feature = "store")]
+use crate::oid::{Oid, NO_OID};
+#[cfg(feature = "store")]
 use libgssapi_sys::gss_store_cred;
-#[cfg(not(target_os = "macos"))]
-use crate::oid::{NO_OID, Oid};
+#[cfg(feature = "store")]
+use std::ffi::c_int;
 
 pub(crate) const NO_CRED: gss_cred_id_t = ptr::null_mut();
 
@@ -305,7 +305,7 @@ impl Cred {
     }
 
     /// Store the credential into default credentials cache. See gss_store_cred.
-    #[cfg(not(target_os = "macos"))]
+    #[cfg(feature = "store")]
     pub fn store(
         &self,
         overwrite: bool,
@@ -346,14 +346,14 @@ impl Cred {
     }
 
     pub(crate) unsafe fn to_c(&self) -> gss_cred_id_t {
-        self.0.0
+        self.0 .0
     }
 
     unsafe fn info_c(&self, mut ifo: CredInfoC) -> Result<CredInfoC, Error> {
         let mut minor: u32 = 0;
         let major = gss_inquire_cred(
             &mut minor as *mut OM_uint32,
-            self.0.0,
+            self.0 .0,
             match ifo.name {
                 None => ptr::null_mut::<gss_name_t>(),
                 Some(ref mut n) => n as *mut gss_name_t,
@@ -426,7 +426,7 @@ impl Cred {
             let mut minor: u32 = 0;
             let major = gss_inquire_cred_by_oid(
                 &mut minor as *mut OM_uint32,
-                self.0.0,
+                self.0 .0,
                 GSS_KRB5_GET_CRED_IMPERSONATOR.to_c(),
                 out.to_c(),
             );
