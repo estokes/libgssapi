@@ -1,7 +1,6 @@
 use crate::{
     error::{Error, MajorFlags, gss_error},
     name::Name,
-    oid::{NO_OID, Oid},
     oid::{NO_OID_SET, OidSet},
     util::BufRef,
 };
@@ -14,7 +13,7 @@ use libgssapi_sys::{
     _GSS_C_INDEFINITE, GSS_C_ACCEPT, GSS_C_BOTH, GSS_C_INITIATE, GSS_S_COMPLETE,
     OM_uint32, gss_OID_set, gss_acquire_cred, gss_acquire_cred_with_password,
     gss_cred_id_struct, gss_cred_id_t, gss_cred_usage_t, gss_inquire_cred,
-    gss_name_struct, gss_name_t, gss_release_cred, gss_store_cred,
+    gss_name_struct, gss_name_t, gss_release_cred,
 };
 #[cfg(feature = "s4u")]
 use libgssapi_sys::{
@@ -23,7 +22,14 @@ use libgssapi_sys::{
 };
 #[cfg(feature = "s4u")]
 use std::ffi::{CStr, CString};
-use std::{ffi::c_int, fmt, ptr, sync::Arc, time::Duration};
+use std::{fmt, ptr, sync::Arc, time::Duration};
+
+#[cfg(not(target_os = "macos"))]
+use std::ffi::c_int;
+#[cfg(not(target_os = "macos"))]
+use libgssapi_sys::gss_store_cred;
+#[cfg(not(target_os = "macos"))]
+use crate::oid::{NO_OID, Oid};
 
 pub(crate) const NO_CRED: gss_cred_id_t = ptr::null_mut();
 
@@ -299,6 +305,7 @@ impl Cred {
     }
 
     /// Store the credential into default credentials cache. See gss_store_cred.
+    #[cfg(not(target_os = "macos"))]
     pub fn store(
         &self,
         overwrite: bool,
