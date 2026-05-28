@@ -1,16 +1,18 @@
 #![allow(dead_code)]
-// In-process MIT krb5 KDC fixture for integration tests.
+// In-process KDC fixture for integration tests. Works against both MIT
+// krb5 and Heimdal — implementation is detected at runtime based on which
+// binaries are present.
 //
 // Each TestKdc instance:
 // * creates a fresh tempdir for its database, configs, keytabs, and ccache
-// * picks a random free port and writes a krb5.conf + kdc.conf that point at it
-// * runs `kdb5_util create` and `krb5kdc -n`
+// * picks a random free port and writes a combined krb5.conf+kdc config
+// * initializes the database and starts the KDC daemon
 // * exposes helpers to add principals, export keytabs, kinit users
-// * on Drop, kills the krb5kdc process and the tempdir cleans itself up
+// * on Drop, kills the KDC process and the tempdir cleans itself up
 //
 // Integration tests using this fixture MUST be run with `--test-threads=1`
 // because the apply_env() helper sets process-wide env vars (KRB5_CONFIG,
-// KRB5_KTNAME, KRB5_CCNAME, KRB5RCACHENAME).
+// KRB5_KTNAME, KRB5CCNAME, KRB5RCACHENAME).
 
 use std::fs;
 use std::io::Write;
@@ -20,13 +22,43 @@ use std::process::{Child, Command, Stdio};
 use std::thread;
 use std::time::{Duration, Instant};
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Impl {
+    Mit,
+    Heimdal,
+}
+
+impl Impl {
+    fn detect() -> Self {
+        if has_binary("krb5kdc") {
+            Impl::Mit
+        } else if Path::new(HEIMDAL_KDC).exists() || has_binary("kdc") {
+            Impl::Heimdal
+        } else {
+            panic!("no KDC binary found (need MIT krb5kdc or Heimdal kdc)")
+        }
+    }
+}
+
+const HEIMDAL_KDC: &str = "/usr/lib/heimdal-servers/kdc";
+
+fn has_binary(name: &str) -> bool {
+    Command::new("which")
+        .arg(name)
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .status()
+        .map(|s| s.success())
+        .unwrap_or(false)
+}
+
 pub struct TestKdc {
     // Held for its drop side effect (tempdir cleanup).
     _tempdir: tempfile::TempDir,
     kdc: Child,
+    imp: Impl,
     pub realm: String,
     pub config_path: PathBuf,
-    kdc_conf_path: PathBuf,
     pub keytab_path: PathBuf,
     pub ccache_path: PathBuf,
 }
@@ -37,134 +69,131 @@ impl TestKdc {
         let dir = tempdir.path().to_path_buf();
         let realm = "EXAMPLE.COM".to_string();
         let port = free_port();
-
-        let kdc_conf_path = dir.join("kdc.conf");
-        fs::write(
-            &kdc_conf_path,
-            format!(
-                "[kdcdefaults]\n\
-                 \tkdc_ports = {port}\n\
-                 \tkdc_tcp_ports = {port}\n\
-                 \n\
-                 [realms]\n\
-                 \t{realm} = {{\n\
-                 \t\tdatabase_name = {db}\n\
-                 \t\tadmin_keytab = FILE:{admin_kt}\n\
-                 \t\tacl_file = {acl}\n\
-                 \t\tkey_stash_file = {stash}\n\
-                 \t\tmax_life = 1h\n\
-                 \t\tmax_renewable_life = 1h\n\
-                 \t}}\n",
-                port = port,
-                realm = realm,
-                db = dir.join("principal").display(),
-                admin_kt = dir.join("kadm5.keytab").display(),
-                acl = dir.join("kadm5.acl").display(),
-                stash = dir.join(".k5stash").display(),
-            ),
-        )
-        .expect("write kdc.conf");
+        let imp = Impl::detect();
 
         let config_path = dir.join("krb5.conf");
-        fs::write(
-            &config_path,
-            format!(
-                "[libdefaults]\n\
-                 \tdefault_realm = {realm}\n\
-                 \tdns_canonicalize_hostname = false\n\
-                 \trdns = false\n\
-                 \tforwardable = true\n\
-                 \tdns_lookup_kdc = false\n\
-                 \tdns_lookup_realm = false\n\
-                 \n\
-                 [realms]\n\
-                 \t{realm} = {{\n\
-                 \t\tkdc = 127.0.0.1:{port}\n\
-                 \t\tadmin_server = 127.0.0.1\n\
-                 \t}}\n\
-                 \n\
-                 [domain_realm]\n\
-                 \ttest.example.com = {realm}\n\
-                 \t.example.com = {realm}\n",
-                realm = realm,
-                port = port,
+        fs::write(&config_path, build_config(&dir, port, &realm)).expect("write config");
+        fs::write(dir.join("acl"), "*/admin@EXAMPLE.COM\t*\n").expect("write acl");
+
+        // Init DB.
+        match imp {
+            Impl::Mit => run_assert(
+                Command::new("kdb5_util")
+                    .args(["create", "-s", "-P", "masterpass", "-r", &realm])
+                    .env("KRB5_CONFIG", &config_path)
+                    .env("KRB5_KDC_PROFILE", &config_path),
+                "kdb5_util create",
             ),
-        )
-        .expect("write krb5.conf");
+            Impl::Heimdal => run_assert(
+                Command::new("kadmin")
+                    .arg("-c")
+                    .arg(&config_path)
+                    .args([
+                        "-l",
+                        "init",
+                        "--realm-max-ticket-life=1h",
+                        "--realm-max-renewable-life=1h",
+                        &realm,
+                    ]),
+                "kadmin init",
+            ),
+        }
 
-        fs::write(dir.join("kadm5.acl"), "*/admin@EXAMPLE.COM\t*\n").expect("write acl");
-
-        let env = [
-            ("KRB5_CONFIG", config_path.as_os_str()),
-            ("KRB5_KDC_PROFILE", kdc_conf_path.as_os_str()),
-        ];
-
-        run_assert(
-            Command::new("kdb5_util")
-                .args(["create", "-s", "-P", "masterpass", "-r", &realm])
-                .envs(env.iter().copied()),
-            "kdb5_util create",
-        );
-
-        let pidfile = dir.join("kdc.pid");
-        let mut kdc_cmd = Command::new("krb5kdc");
-        kdc_cmd
-            .args(["-n", "-P"])
-            .arg(&pidfile)
-            .args(["-r", &realm])
-            .envs(env.iter().copied())
-            .stdout(Stdio::null())
-            .stderr(Stdio::null());
-        let kdc = kdc_cmd.spawn().expect("spawn krb5kdc");
+        // Start KDC.
+        let kdc = match imp {
+            Impl::Mit => Command::new("krb5kdc")
+                .args(["-n", "-P"])
+                .arg(dir.join("kdc.pid"))
+                .args(["-r", &realm])
+                .env("KRB5_CONFIG", &config_path)
+                .env("KRB5_KDC_PROFILE", &config_path)
+                .stdout(Stdio::null())
+                .stderr(Stdio::null())
+                .spawn()
+                .expect("spawn krb5kdc"),
+            Impl::Heimdal => Command::new(HEIMDAL_KDC)
+                .arg("-c")
+                .arg(&config_path)
+                .arg("--addresses=127.0.0.1")
+                .arg(format!("--ports={port}/tcp {port}/udp"))
+                .stdout(Stdio::null())
+                .stderr(Stdio::null())
+                .spawn()
+                .expect("spawn heimdal kdc"),
+        };
 
         wait_for_port(port);
 
         TestKdc {
             _tempdir: tempdir,
             kdc,
+            imp,
             realm,
             config_path,
-            kdc_conf_path,
             keytab_path: dir.join("test.keytab"),
             ccache_path: dir.join("ccache"),
         }
     }
 
-    fn kadmin_env(&self) -> [(&'static str, &Path); 2] {
-        [
-            ("KRB5_CONFIG", self.config_path.as_path()),
-            ("KRB5_KDC_PROFILE", self.kdc_conf_path.as_path()),
-        ]
+    fn kadmin_local(&self) -> Command {
+        match self.imp {
+            Impl::Mit => {
+                let mut c = Command::new("kadmin.local");
+                c.env("KRB5_CONFIG", &self.config_path)
+                    .env("KRB5_KDC_PROFILE", &self.config_path);
+                c
+            }
+            Impl::Heimdal => {
+                let mut c = Command::new("kadmin");
+                c.arg("-c").arg(&self.config_path).arg("-l");
+                c
+            }
+        }
     }
 
     pub fn add_principal_random_key(&self, principal: &str) {
-        run_assert(
-            Command::new("kadmin.local")
-                .args(["-q", &format!("addprinc -randkey {principal}")])
-                .envs(self.kadmin_env().iter().copied()),
-            "addprinc -randkey",
-        );
+        let mut cmd = self.kadmin_local();
+        match self.imp {
+            Impl::Mit => {
+                cmd.args(["-q", &format!("addprinc -randkey {principal}")]);
+            }
+            Impl::Heimdal => {
+                cmd.args(["add", "--use-defaults", "--random-key", principal]);
+            }
+        }
+        run_assert(&mut cmd, "add_principal_random_key");
     }
 
     pub fn add_principal_with_password(&self, principal: &str, password: &str) {
-        run_assert(
-            Command::new("kadmin.local")
-                .args(["-q", &format!("addprinc -pw {password} {principal}")])
-                .envs(self.kadmin_env().iter().copied()),
-            "addprinc -pw",
-        );
+        let mut cmd = self.kadmin_local();
+        match self.imp {
+            Impl::Mit => {
+                cmd.args(["-q", &format!("addprinc -pw {password} {principal}")]);
+            }
+            Impl::Heimdal => {
+                cmd.args([
+                    "add",
+                    "--use-defaults",
+                    &format!("--password={password}"),
+                    principal,
+                ]);
+            }
+        }
+        run_assert(&mut cmd, "add_principal_with_password");
     }
 
     pub fn export_keytab(&self, principal: &str) {
-        run_assert(
-            Command::new("kadmin.local")
-                .args([
-                    "-q",
-                    &format!("ktadd -k {} {principal}", self.keytab_path.display()),
-                ])
-                .envs(self.kadmin_env().iter().copied()),
-            "ktadd",
-        );
+        let mut cmd = self.kadmin_local();
+        let kt = self.keytab_path.to_string_lossy().into_owned();
+        match self.imp {
+            Impl::Mit => {
+                cmd.args(["-q", &format!("ktadd -k {kt} {principal}")]);
+            }
+            Impl::Heimdal => {
+                cmd.args(["ext_keytab", "-k", &kt, principal]);
+            }
+        }
+        run_assert(&mut cmd, "export_keytab");
     }
 
     pub fn kinit(&self, principal: &str, password: &str) {
@@ -178,12 +207,12 @@ impl TestKdc {
             .stderr(Stdio::piped())
             .spawn()
             .expect("spawn kinit");
-        child
-            .stdin
-            .as_mut()
-            .unwrap()
-            .write_all(password.as_bytes())
-            .expect("write kinit stdin");
+        // Heimdal's kinit always prints a prompt to stderr before reading
+        // stdin; that's harmless. Both impls accept the password on stdin
+        // followed by a newline.
+        let stdin = child.stdin.as_mut().unwrap();
+        stdin.write_all(password.as_bytes()).expect("write kinit stdin");
+        stdin.write_all(b"\n").expect("write kinit newline");
         let output = child.wait_with_output().expect("wait kinit");
         assert!(
             output.status.success(),
@@ -219,6 +248,56 @@ impl Drop for TestKdc {
     }
 }
 
+fn build_config(dir: &Path, port: u16, realm: &str) -> String {
+    // One config file used by both impls. MIT ignores `[kdc]`; Heimdal
+    // ignores `[kdcdefaults]` and the database-related keys inside
+    // `[realms]`.
+    format!(
+        "[libdefaults]\n\
+         \tdefault_realm = {realm}\n\
+         \tdns_canonicalize_hostname = false\n\
+         \trdns = false\n\
+         \tforwardable = true\n\
+         \tdns_lookup_kdc = false\n\
+         \tdns_lookup_realm = false\n\
+         \n\
+         [realms]\n\
+         \t{realm} = {{\n\
+         \t\tkdc = 127.0.0.1:{port}\n\
+         \t\tadmin_server = 127.0.0.1\n\
+         \t\tdatabase_name = {db}\n\
+         \t\tadmin_keytab = FILE:{admin_kt}\n\
+         \t\tacl_file = {acl}\n\
+         \t\tkey_stash_file = {stash}\n\
+         \t\tmax_life = 1h\n\
+         \t\tmax_renewable_life = 1h\n\
+         \t}}\n\
+         \n\
+         [kdcdefaults]\n\
+         \tkdc_ports = {port}\n\
+         \tkdc_tcp_ports = {port}\n\
+         \n\
+         [domain_realm]\n\
+         \ttest.example.com = {realm}\n\
+         \t.example.com = {realm}\n\
+         \n\
+         [kdc]\n\
+         \tdatabase = {{\n\
+         \t\tdbname = {heimdal_db}\n\
+         \t\tacl_file = {acl}\n\
+         \t\tmkey_file = {heimdal_mkey}\n\
+         \t\tlog_file = {heimdal_log}\n\
+         \t}}\n",
+        db = dir.join("principal").display(),
+        admin_kt = dir.join("kadm5.keytab").display(),
+        acl = dir.join("acl").display(),
+        stash = dir.join(".k5stash").display(),
+        heimdal_db = dir.join("heimdal").display(),
+        heimdal_mkey = dir.join("heimdal.mkey").display(),
+        heimdal_log = dir.join("heimdal.log").display(),
+    )
+}
+
 fn free_port() -> u16 {
     let listener = TcpListener::bind("127.0.0.1:0").expect("bind ephemeral port");
     listener.local_addr().unwrap().port()
@@ -248,3 +327,4 @@ fn run_assert(cmd: &mut Command, what: &str) {
         String::from_utf8_lossy(&output.stderr),
     );
 }
+

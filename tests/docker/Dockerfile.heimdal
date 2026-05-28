@@ -1,0 +1,21 @@
+# Heimdal Kerberos build/test environment.
+#
+# Builds libgssapi against Heimdal so the wrapper can be verified without
+# installing Heimdal on the host. Source is mounted at /work; build
+# artifacts go to /work/target-heimdal via CARGO_TARGET_DIR.
+
+FROM rust:bookworm
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        heimdal-dev \
+        heimdal-clients \
+        heimdal-kdc \
+        clang \
+        libclang-dev \
+        pkg-config \
+        ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+ENV CARGO_TARGET_DIR=/work/target-heimdal
+
+WORKDIR /work

@@ -17,18 +17,37 @@ Two-crate cargo workspace:
 cargo build                                    # default features
 cargo build --all-features                     # iov + s4u + localname + store
 cargo build --no-default-features              # bare minimum
-cargo test -p libgssapi                        # most tests need a live Kerberos env
 cargo run --example krb5 -- nfs@host.example.com
-cargo run --example krb5_iov -- nfs@host.example.com
-cargo run --example krb5_auth -- nfs@host.example.com
 ```
 
-The examples are the de-facto integration tests. For them to succeed
-you need a valid `krb5.conf`, a TGT (`klist`/`kinit`), and for the
-server side a keytab the process can read — pass it via
-`KRB5_KTNAME=FILE:/path/to/keytab`. When MIT Kerberos returns its usual
-unhelpful "Unspecified GSS failure", set `KRB5_TRACE=/dev/stderr` to
-see what actually went wrong.
+For tests, use the driver script — it sets up an in-process KDC and
+runs the full suite. MIT runs natively against the host's krb5
+install; Heimdal runs inside a podman container with target-heimdal/
+as a separate build directory so it doesn't clobber the host build.
+
+```sh
+tests/test.sh                # MIT (host) only
+tests/test.sh heimdal        # Heimdal in container
+tests/test.sh all            # both
+```
+
+The Heimdal container image (`tests/docker/Dockerfile.heimdal`) is
+built on first run and cached. Tests pass identically against both
+impls — the `TestKdc` fixture in `tests/common/mod.rs` detects which
+KDC binaries are present and branches on MIT vs Heimdal command
+syntax.
+
+Pure-Rust tests also run under Miri:
+
+```sh
+cargo +nightly miri test -p libgssapi --no-default-features pure_rust_tests
+```
+
+The examples in `libgssapi/examples/` are smoke tests against a real
+KDC; rarely needed now that `tests/krb5_mutual_auth.rs` does the same
+thing as a `#[test]`. When MIT Kerberos returns its usual unhelpful
+"Unspecified GSS failure" during debugging, set
+`KRB5_TRACE=/dev/stderr` to see what actually went wrong.
 
 A `rustfmt.toml` exists, but per the user's global rules **don't run
 `cargo fmt`** — it produces huge unrelated diffs.
