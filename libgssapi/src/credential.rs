@@ -362,33 +362,35 @@ impl Cred {
 
     unsafe fn info_c(&self, mut ifo: CredInfoC) -> Result<CredInfoC, Error> {
         let mut minor: u32 = 0;
-        let major = gss_inquire_cred(
-            &mut minor as *mut OM_uint32,
-            self.0 .0,
-            match ifo.name {
-                None => ptr::null_mut::<gss_name_t>(),
-                Some(ref mut n) => n as *mut gss_name_t,
-            },
-            match ifo.lifetime {
-                None => ptr::null_mut::<u32>(),
-                Some(ref mut l) => l as *mut OM_uint32,
-            },
-            match ifo.usage {
-                None => ptr::null_mut::<i32>(),
-                Some(ref mut u) => u as *mut gss_cred_usage_t,
-            },
-            match ifo.mechanisms {
-                None => ptr::null_mut::<gss_OID_set>(),
-                Some(ref mut s) => s as *mut gss_OID_set,
-            },
-        );
+        let major = unsafe {
+            gss_inquire_cred(
+                &mut minor as *mut OM_uint32,
+                self.0 .0,
+                match ifo.name {
+                    None => ptr::null_mut::<gss_name_t>(),
+                    Some(ref mut n) => n as *mut gss_name_t,
+                },
+                match ifo.lifetime {
+                    None => ptr::null_mut::<u32>(),
+                    Some(ref mut l) => l as *mut OM_uint32,
+                },
+                match ifo.usage {
+                    None => ptr::null_mut::<i32>(),
+                    Some(ref mut u) => u as *mut gss_cred_usage_t,
+                },
+                match ifo.mechanisms {
+                    None => ptr::null_mut::<gss_OID_set>(),
+                    Some(ref mut s) => s as *mut gss_OID_set,
+                },
+            )
+        };
         if gss_error(major) > 0 {
             // make sure we free anything that was successfully built
             if let Some(n) = ifo.name {
-                Name::from_c(n);
+                unsafe { Name::from_c(n) };
             }
             if let Some(s) = ifo.mechanisms {
-                OidSet::from_c(s);
+                unsafe { OidSet::from_c(s) };
             }
             Err(Error {
                 major: MajorFlags::from_bits_retain(major),

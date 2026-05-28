@@ -196,7 +196,7 @@ impl Oid {
     /// `gss_OID_set` — those are freed with the set.
     #[allow(dead_code)]
     pub(crate) unsafe fn from_c(ptr: gss_OID) -> &'static Oid {
-        &*(ptr as *const Oid)
+        unsafe { &*(ptr as *const Oid) }
     }
 
     pub(crate) unsafe fn to_c(&self) -> gss_OID {

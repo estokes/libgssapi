@@ -2,7 +2,7 @@
 name = "libgssapi"
 version = "0.9.1"
 authors = ["Eric Stokes <letaris@gmail.com>"]
-edition = "2021"
+edition = "2024"
 license = "MIT"
 description = "A safe binding to gssapi"
 homepage = "https://github.com/estokes/libgssapi"

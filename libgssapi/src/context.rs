@@ -56,15 +56,17 @@ unsafe fn wrap(ctx: gss_ctx_id_t, encrypt: bool, msg: &[u8]) -> Result<Buf, Erro
     let mut minor = GSS_S_COMPLETE;
     let mut msg = BufRef::from(msg);
     let mut enc_msg = Buf::empty();
-    let major = gss_wrap(
-        &mut minor as *mut OM_uint32,
-        ctx,
-        if encrypt { 1 } else { 0 },
-        GSS_C_QOP_DEFAULT,
-        msg.to_c(),
-        ptr::null_mut(),
-        enc_msg.to_c(),
-    );
+    let major = unsafe {
+        gss_wrap(
+            &mut minor as *mut OM_uint32,
+            ctx,
+            if encrypt { 1 } else { 0 },
+            GSS_C_QOP_DEFAULT,
+            msg.to_c(),
+            ptr::null_mut(),
+            enc_msg.to_c(),
+        )
+    };
     if major == GSS_S_COMPLETE {
         Ok(enc_msg)
     } else {
@@ -82,15 +84,17 @@ unsafe fn wrap_iov(
     msg: &mut [GssIov],
 ) -> Result<(), Error> {
     let mut minor = GSS_S_COMPLETE;
-    let major = gss_wrap_iov(
-        &mut minor as *mut OM_uint32,
-        ctx,
-        if encrypt { 1 } else { 0 },
-        GSS_C_QOP_DEFAULT,
-        ptr::null_mut(),
-        msg.as_mut_ptr() as *mut gss_iov_buffer_desc,
-        msg.len() as c_int,
-    );
+    let major = unsafe {
+        gss_wrap_iov(
+            &mut minor as *mut OM_uint32,
+            ctx,
+            if encrypt { 1 } else { 0 },
+            GSS_C_QOP_DEFAULT,
+            ptr::null_mut(),
+            msg.as_mut_ptr() as *mut gss_iov_buffer_desc,
+            msg.len() as c_int,
+        )
+    };
     if major == GSS_S_COMPLETE {
         Ok(())
     } else {
@@ -108,15 +112,17 @@ unsafe fn wrap_iov_length(
     msg: &mut [GssIovFake],
 ) -> Result<(), Error> {
     let mut minor = GSS_S_COMPLETE;
-    let major = gss_wrap_iov_length(
-        &mut minor as *mut OM_uint32,
-        ctx,
-        if encrypt { 1 } else { 0 },
-        GSS_C_QOP_DEFAULT,
-        ptr::null_mut(),
-        msg.as_mut_ptr() as *mut gss_iov_buffer_desc,
-        msg.len() as c_int,
-    );
+    let major = unsafe {
+        gss_wrap_iov_length(
+            &mut minor as *mut OM_uint32,
+            ctx,
+            if encrypt { 1 } else { 0 },
+            GSS_C_QOP_DEFAULT,
+            ptr::null_mut(),
+            msg.as_mut_ptr() as *mut gss_iov_buffer_desc,
+            msg.len() as c_int,
+        )
+    };
     if major == GSS_S_COMPLETE {
         Ok(())
     } else {
@@ -131,14 +137,16 @@ unsafe fn unwrap(ctx: gss_ctx_id_t, msg: &[u8]) -> Result<Buf, Error> {
     let mut minor = GSS_S_COMPLETE;
     let mut msg = BufRef::from(msg);
     let mut out = Buf::empty();
-    let major = gss_unwrap(
-        &mut minor as *mut OM_uint32,
-        ctx,
-        msg.to_c(),
-        out.to_c(),
-        ptr::null_mut::<i32>(),
-        ptr::null_mut::<OM_uint32>(),
-    );
+    let major = unsafe {
+        gss_unwrap(
+            &mut minor as *mut OM_uint32,
+            ctx,
+            msg.to_c(),
+            out.to_c(),
+            ptr::null_mut::<i32>(),
+            ptr::null_mut::<OM_uint32>(),
+        )
+    };
     if major == GSS_S_COMPLETE {
         Ok(out)
     } else {
@@ -153,13 +161,15 @@ unsafe fn get_mic(ctx: gss_ctx_id_t, msg: &[u8]) -> Result<Buf, Error> {
     let mut minor = GSS_S_COMPLETE;
     let mut msg = BufRef::from(msg);
     let mut tok = Buf::empty();
-    let major = gss_get_mic(
-        &mut minor as *mut OM_uint32,
-        ctx,
-        GSS_C_QOP_DEFAULT as gss_qop_t,
-        msg.to_c(),
-        tok.to_c(),
-    );
+    let major = unsafe {
+        gss_get_mic(
+            &mut minor as *mut OM_uint32,
+            ctx,
+            GSS_C_QOP_DEFAULT as gss_qop_t,
+            msg.to_c(),
+            tok.to_c(),
+        )
+    };
     if major == GSS_S_COMPLETE {
         Ok(tok)
     } else {
@@ -175,13 +185,15 @@ unsafe fn verify_mic(ctx: gss_ctx_id_t, msg: &[u8], tok: &[u8]) -> Result<(), Er
     let mut msg = BufRef::from(msg);
     let mut tok = BufRef::from(tok);
     let mut qop: gss_qop_t = 0;
-    let major = gss_verify_mic(
-        &mut minor as *mut OM_uint32,
-        ctx,
-        msg.to_c(),
-        tok.to_c(),
-        &mut qop as *mut gss_qop_t,
-    );
+    let major = unsafe {
+        gss_verify_mic(
+            &mut minor as *mut OM_uint32,
+            ctx,
+            msg.to_c(),
+            tok.to_c(),
+            &mut qop as *mut gss_qop_t,
+        )
+    };
     if major == GSS_S_COMPLETE {
         Ok(())
     } else {
@@ -195,14 +207,16 @@ unsafe fn verify_mic(ctx: gss_ctx_id_t, msg: &[u8], tok: &[u8]) -> Result<(), Er
 #[cfg(feature = "iov")]
 unsafe fn unwrap_iov(ctx: gss_ctx_id_t, msg: &mut [GssIov]) -> Result<(), Error> {
     let mut minor = GSS_S_COMPLETE;
-    let major = gss_unwrap_iov(
-        &mut minor as *mut OM_uint32,
-        ctx,
-        ptr::null_mut(),
-        ptr::null_mut(),
-        msg.as_mut_ptr() as *mut gss_iov_buffer_desc,
-        msg.len() as c_int,
-    );
+    let major = unsafe {
+        gss_unwrap_iov(
+            &mut minor as *mut OM_uint32,
+            ctx,
+            ptr::null_mut(),
+            ptr::null_mut(),
+            msg.as_mut_ptr() as *mut gss_iov_buffer_desc,
+            msg.len() as c_int,
+        )
+    };
     if major == GSS_S_COMPLETE {
         Ok(())
     } else {
@@ -250,45 +264,47 @@ impl CtxInfoC {
 
 unsafe fn info(ctx: gss_ctx_id_t, mut ifo: CtxInfoC) -> Result<CtxInfoC, Error> {
     let mut minor: u32 = 0;
-    let major = gss_inquire_context(
-        &mut minor as *mut OM_uint32,
-        ctx,
-        match ifo.source_name {
-            None => ptr::null_mut::<gss_name_t>(),
-            Some(ref mut n) => n as *mut gss_name_t,
-        },
-        match ifo.target_name {
-            None => ptr::null_mut::<gss_name_t>(),
-            Some(ref mut n) => n as *mut gss_name_t,
-        },
-        match ifo.lifetime {
-            None => ptr::null_mut::<u32>(),
-            Some(ref mut l) => l as *mut OM_uint32,
-        },
-        match ifo.mechanism {
-            None => ptr::null_mut::<gss_OID>(),
-            Some(ref mut o) => o as *mut gss_OID,
-        },
-        match ifo.flags {
-            None => ptr::null_mut::<u32>(),
-            Some(ref mut f) => f as *mut OM_uint32,
-        },
-        match ifo.local {
-            None => ptr::null_mut::<i32>(),
-            Some(ref mut l) => l as *mut c_int,
-        },
-        match ifo.open {
-            None => ptr::null_mut::<i32>(),
-            Some(ref mut o) => o as *mut c_int,
-        },
-    );
+    let major = unsafe {
+        gss_inquire_context(
+            &mut minor as *mut OM_uint32,
+            ctx,
+            match ifo.source_name {
+                None => ptr::null_mut::<gss_name_t>(),
+                Some(ref mut n) => n as *mut gss_name_t,
+            },
+            match ifo.target_name {
+                None => ptr::null_mut::<gss_name_t>(),
+                Some(ref mut n) => n as *mut gss_name_t,
+            },
+            match ifo.lifetime {
+                None => ptr::null_mut::<u32>(),
+                Some(ref mut l) => l as *mut OM_uint32,
+            },
+            match ifo.mechanism {
+                None => ptr::null_mut::<gss_OID>(),
+                Some(ref mut o) => o as *mut gss_OID,
+            },
+            match ifo.flags {
+                None => ptr::null_mut::<u32>(),
+                Some(ref mut f) => f as *mut OM_uint32,
+            },
+            match ifo.local {
+                None => ptr::null_mut::<i32>(),
+                Some(ref mut l) => l as *mut c_int,
+            },
+            match ifo.open {
+                None => ptr::null_mut::<i32>(),
+                Some(ref mut o) => o as *mut c_int,
+            },
+        )
+    };
     if gss_error(major) > 0 {
         // make sure we free anything that was successfully allocated
         if let Some(source_name) = ifo.source_name {
-            Name::from_c(source_name);
+            unsafe { Name::from_c(source_name) };
         }
         if let Some(target_name) = ifo.target_name {
-            Name::from_c(target_name);
+            unsafe { Name::from_c(target_name) };
         }
         Err(Error {
             major: MajorFlags::from_bits_retain(major),
@@ -300,23 +316,25 @@ unsafe fn info(ctx: gss_ctx_id_t, mut ifo: CtxInfoC) -> Result<CtxInfoC, Error> 
 }
 
 unsafe fn full_info(ctx: gss_ctx_id_t) -> Result<CtxInfo, Error> {
-    let c = info(
-        ctx,
-        CtxInfoC {
-            source_name: Some(ptr::null_mut()),
-            target_name: Some(ptr::null_mut()),
-            lifetime: Some(0),
-            mechanism: Some(ptr::null_mut()),
-            flags: Some(0),
-            local: Some(0),
-            open: Some(0),
-        },
-    )?;
+    let c = unsafe {
+        info(
+            ctx,
+            CtxInfoC {
+                source_name: Some(ptr::null_mut()),
+                target_name: Some(ptr::null_mut()),
+                lifetime: Some(0),
+                mechanism: Some(ptr::null_mut()),
+                flags: Some(0),
+                local: Some(0),
+                open: Some(0),
+            },
+        )?
+    };
     Ok(CtxInfo {
-        source_name: Name::from_c(c.source_name.unwrap()),
-        target_name: Name::from_c(c.target_name.unwrap()),
+        source_name: unsafe { Name::from_c(c.source_name.unwrap()) },
+        target_name: unsafe { Name::from_c(c.target_name.unwrap()) },
         lifetime: Duration::from_secs(c.lifetime.unwrap() as u64),
-        mechanism: Oid::from_c(c.mechanism.unwrap()),
+        mechanism: unsafe { Oid::from_c(c.mechanism.unwrap()) },
         flags: CtxFlags::from_bits_retain(c.flags.unwrap()),
         local: c.local.unwrap() > 0,
         open: c.open.unwrap() > 0,
@@ -324,79 +342,93 @@ unsafe fn full_info(ctx: gss_ctx_id_t) -> Result<CtxInfo, Error> {
 }
 
 unsafe fn source_name(ctx: gss_ctx_id_t) -> Result<Name, Error> {
-    let c = info(
-        ctx,
-        CtxInfoC {
-            source_name: Some(ptr::null_mut()),
-            ..CtxInfoC::empty()
-        },
-    )?;
-    Ok(Name::from_c(c.source_name.unwrap()))
+    let c = unsafe {
+        info(
+            ctx,
+            CtxInfoC {
+                source_name: Some(ptr::null_mut()),
+                ..CtxInfoC::empty()
+            },
+        )?
+    };
+    Ok(unsafe { Name::from_c(c.source_name.unwrap()) })
 }
 
 unsafe fn target_name(ctx: gss_ctx_id_t) -> Result<Name, Error> {
-    let c = info(
-        ctx,
-        CtxInfoC {
-            target_name: Some(ptr::null_mut()),
-            ..CtxInfoC::empty()
-        },
-    )?;
-    Ok(Name::from_c(c.target_name.unwrap()))
+    let c = unsafe {
+        info(
+            ctx,
+            CtxInfoC {
+                target_name: Some(ptr::null_mut()),
+                ..CtxInfoC::empty()
+            },
+        )?
+    };
+    Ok(unsafe { Name::from_c(c.target_name.unwrap()) })
 }
 
 unsafe fn lifetime(ctx: gss_ctx_id_t) -> Result<Duration, Error> {
-    let c = info(
-        ctx,
-        CtxInfoC {
-            lifetime: Some(0),
-            ..CtxInfoC::empty()
-        },
-    )?;
+    let c = unsafe {
+        info(
+            ctx,
+            CtxInfoC {
+                lifetime: Some(0),
+                ..CtxInfoC::empty()
+            },
+        )?
+    };
     Ok(Duration::from_secs(c.lifetime.unwrap() as u64))
 }
 
 unsafe fn mechanism(ctx: gss_ctx_id_t) -> Result<&'static Oid, Error> {
-    let c = info(
-        ctx,
-        CtxInfoC {
-            mechanism: Some(ptr::null_mut()),
-            ..CtxInfoC::empty()
-        },
-    )?;
-    Ok(Oid::from_c(c.mechanism.unwrap()))
+    let c = unsafe {
+        info(
+            ctx,
+            CtxInfoC {
+                mechanism: Some(ptr::null_mut()),
+                ..CtxInfoC::empty()
+            },
+        )?
+    };
+    Ok(unsafe { Oid::from_c(c.mechanism.unwrap()) })
 }
 
 unsafe fn flags(ctx: gss_ctx_id_t) -> Result<CtxFlags, Error> {
-    let c = info(
-        ctx,
-        CtxInfoC {
-            flags: Some(0),
-            ..CtxInfoC::empty()
-        },
-    )?;
+    let c = unsafe {
+        info(
+            ctx,
+            CtxInfoC {
+                flags: Some(0),
+                ..CtxInfoC::empty()
+            },
+        )?
+    };
     Ok(CtxFlags::from_bits_retain(c.flags.unwrap()))
 }
 
 unsafe fn local(ctx: gss_ctx_id_t) -> Result<bool, Error> {
-    let c = info(
-        ctx,
-        CtxInfoC {
-            local: Some(0),
-            ..CtxInfoC::empty()
-        },
-    )?;
+    let c = unsafe {
+        info(
+            ctx,
+            CtxInfoC {
+                local: Some(0),
+                ..CtxInfoC::empty()
+            },
+        )?
+    };
     Ok(c.local.unwrap() > 0)
 }
 
 unsafe fn open(ctx: gss_ctx_id_t) -> Result<bool, Error> {
-    let c = info(
-        ctx,
-        CtxInfoC {
-            open: Some(0),
-            ..CtxInfoC::empty()
-        },
-    )?;
+    let c = unsafe {
+        info(
+            ctx,
+            CtxInfoC {
+                open: Some(0),
+                ..CtxInfoC::empty()
+            },
+        )?
+    };
     Ok(c.open.unwrap() > 0)
 }
 
