@@ -10,11 +10,12 @@ use crate::{
 use libgssapi_sys::{
     gss_OID, gss_accept_sec_context, gss_buffer_desc, gss_channel_bindings_struct,
     gss_channel_bindings_t, gss_cred_id_struct, gss_cred_id_t, gss_ctx_id_t,
-    gss_delete_sec_context, gss_init_sec_context, gss_inquire_context, gss_name_t,
-    gss_unwrap, gss_wrap, OM_uint32, GSS_C_ANON_FLAG, GSS_C_CONF_FLAG, GSS_C_DELEG_FLAG,
-    GSS_C_DELEG_POLICY_FLAG, GSS_C_INTEG_FLAG, GSS_C_MUTUAL_FLAG, GSS_C_PROT_READY_FLAG,
-    GSS_C_QOP_DEFAULT, GSS_C_REPLAY_FLAG, GSS_C_SEQUENCE_FLAG, GSS_C_TRANS_FLAG,
-    GSS_S_COMPLETE, _GSS_C_INDEFINITE, _GSS_S_CONTINUE_NEEDED,
+    gss_delete_sec_context, gss_get_mic, gss_init_sec_context, gss_inquire_context,
+    gss_name_t, gss_qop_t, gss_unwrap, gss_verify_mic, gss_wrap, OM_uint32,
+    GSS_C_ANON_FLAG, GSS_C_CONF_FLAG, GSS_C_DELEG_FLAG, GSS_C_DELEG_POLICY_FLAG,
+    GSS_C_INTEG_FLAG, GSS_C_MUTUAL_FLAG, GSS_C_PROT_READY_FLAG, GSS_C_QOP_DEFAULT,
+    GSS_C_REPLAY_FLAG, GSS_C_SEQUENCE_FLAG, GSS_C_TRANS_FLAG, GSS_S_COMPLETE,
+    _GSS_C_INDEFINITE, _GSS_S_CONTINUE_NEEDED,
 };
 #[cfg(feature = "iov")]
 use libgssapi_sys::{
@@ -140,6 +141,49 @@ unsafe fn unwrap(ctx: gss_ctx_id_t, msg: &[u8]) -> Result<Buf, Error> {
     );
     if major == GSS_S_COMPLETE {
         Ok(out)
+    } else {
+        Err(Error {
+            major: MajorFlags::from_bits_retain(major),
+            minor,
+        })
+    }
+}
+
+unsafe fn get_mic(ctx: gss_ctx_id_t, msg: &[u8]) -> Result<Buf, Error> {
+    let mut minor = GSS_S_COMPLETE;
+    let mut msg = BufRef::from(msg);
+    let mut tok = Buf::empty();
+    let major = gss_get_mic(
+        &mut minor as *mut OM_uint32,
+        ctx,
+        GSS_C_QOP_DEFAULT as gss_qop_t,
+        msg.to_c(),
+        tok.to_c(),
+    );
+    if major == GSS_S_COMPLETE {
+        Ok(tok)
+    } else {
+        Err(Error {
+            major: MajorFlags::from_bits_retain(major),
+            minor,
+        })
+    }
+}
+
+unsafe fn verify_mic(ctx: gss_ctx_id_t, msg: &[u8], tok: &[u8]) -> Result<(), Error> {
+    let mut minor = GSS_S_COMPLETE;
+    let mut msg = BufRef::from(msg);
+    let mut tok = BufRef::from(tok);
+    let mut qop: gss_qop_t = 0;
+    let major = gss_verify_mic(
+        &mut minor as *mut OM_uint32,
+        ctx,
+        msg.to_c(),
+        tok.to_c(),
+        &mut qop as *mut gss_qop_t,
+    );
+    if major == GSS_S_COMPLETE {
+        Ok(())
     } else {
         Err(Error {
             major: MajorFlags::from_bits_retain(major),
@@ -424,6 +468,15 @@ pub trait SecurityContext {
     /// decrypting it if necessary.
     fn unwrap(&mut self, msg: &[u8]) -> Result<Buf, Error>;
 
+    /// Compute a MIC (message integrity code) over `msg`. The returned
+    /// buffer is the bare MIC token, suitable for use as an RPCSEC_GSS
+    /// verifier (RFC 2203 §5.3.3).
+    fn get_mic(&mut self, msg: &[u8]) -> Result<Buf, Error>;
+
+    /// Verify a previously-computed MIC token against `msg`. Returns
+    /// `Ok(())` if the token is valid for this context.
+    fn verify_mic(&mut self, msg: &[u8], tok: &[u8]) -> Result<(), Error>;
+
     /** From the MIT Kerberos documentation,
 
     > gss_unwrap_iov may be called with an IOV list just like one which
@@ -618,6 +671,14 @@ impl SecurityContext for ServerCtx {
     #[cfg(feature = "iov")]
     fn unwrap_iov(&mut self, msg: &mut [GssIov]) -> Result<(), Error> {
         unsafe { unwrap_iov(self.ctx, msg) }
+    }
+
+    fn get_mic(&mut self, msg: &[u8]) -> Result<Buf, Error> {
+        unsafe { get_mic(self.ctx, msg) }
+    }
+
+    fn verify_mic(&mut self, msg: &[u8], tok: &[u8]) -> Result<(), Error> {
+        unsafe { verify_mic(self.ctx, msg, tok) }
     }
 
     fn info(&mut self) -> Result<CtxInfo, Error> {
@@ -836,6 +897,14 @@ impl SecurityContext for ClientCtx {
     #[cfg(feature = "iov")]
     fn unwrap_iov(&mut self, msg: &mut [GssIov]) -> Result<(), Error> {
         unsafe { unwrap_iov(self.ctx, msg) }
+    }
+
+    fn get_mic(&mut self, msg: &[u8]) -> Result<Buf, Error> {
+        unsafe { get_mic(self.ctx, msg) }
+    }
+
+    fn verify_mic(&mut self, msg: &[u8], tok: &[u8]) -> Result<(), Error> {
+        unsafe { verify_mic(self.ctx, msg, tok) }
     }
 
     fn info(&mut self) -> Result<CtxInfo, Error> {
