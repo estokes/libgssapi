@@ -74,7 +74,11 @@ impl Name {
             gss_import_name(
                 &mut minor as *mut OM_uint32,
                 buf.to_c(),
-                match kind {
+                // match by reference: `Oid::to_c` returns a pointer *into*
+                // the Oid, so the Oid must outlive the FFI call. Matching
+                // `kind` by value would bind a copy local to the match arm
+                // that is dropped before `gss_import_name` reads it.
+                match &kind {
                     None => ptr::null_mut::<gss_OID_desc>(),
                     Some(kind) => kind.to_c(),
                 },
@@ -101,7 +105,7 @@ impl Name {
             gss_canonicalize_name(
                 &mut minor as *mut OM_uint32,
                 self.to_c(),
-                match mech {
+                match &mech {
                     None => ptr::null_mut::<gss_OID_desc>(),
                     Some(id) => id.to_c()
                 },
@@ -177,7 +181,7 @@ impl Name {
             gss_localname(
                 &mut minor as *mut OM_uint32,
                 self.0,
-                mechs.map_or(NO_OID, |o| o.to_c()),
+                mechs.as_ref().map_or(NO_OID, |o| o.to_c()),
                 out.to_c()
             )
         };

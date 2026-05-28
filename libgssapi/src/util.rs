@@ -108,6 +108,12 @@ mod iov {
     #[derive(Debug)]
     pub struct GssIov<'a>(gss_iov_buffer_desc, PhantomData<&'a [u8]>);
 
+    // Unlike the security-context types, nothing reachable through a
+    // shared `&GssIov` calls into gssapi — `Deref`/`len`/`typ`/
+    // `header_length` are pure reads of the descriptor and its bytes, so
+    // `Sync` is as sound as `&[u8]: Sync`. Mutation goes through
+    // `as_mut_slice`, which requires `&mut self` and so can't be reached
+    // through a shared reference.
     unsafe impl<'a> Send for GssIov<'a> {}
     unsafe impl<'a> Sync for GssIov<'a> {}
 

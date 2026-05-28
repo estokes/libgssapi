@@ -275,7 +275,8 @@ impl Cred {
                 &mut minor as *mut OM_uint32,
                 self.to_c(),
                 usage as gss_cred_usage_t,
-                match desired_mech {
+                // match by reference: see note in `store`.
+                match &desired_mech {
                     None => NO_OID,
                     Some(desired_mechs) => desired_mechs.to_c(),
                 },
@@ -313,7 +314,10 @@ impl Cred {
                 &mut minor as *mut OM_uint32,
                 self.to_c(),
                 usage.to_c() as gss_cred_usage_t,
-                match desired_mech {
+                // match by reference: `Oid::to_c` returns a pointer *into*
+                // the Oid, which must outlive this call. Matching by value
+                // would point at an arm-local copy dropped before the call.
+                match &desired_mech {
                     None => NO_OID,
                     Some(desired_mechs) => desired_mechs.to_c(),
                 },
@@ -325,6 +329,7 @@ impl Cred {
         };
         if major == GSS_S_COMPLETE {
             Ok((
+                // SAFETY: gss_store_cred wrote a freshly-allocated set here
                 unsafe { OidSet::from_c(elements_stored) },
                 CredUsage::from_c(res_usage as i32)?,
             ))

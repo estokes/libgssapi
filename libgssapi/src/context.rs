@@ -865,7 +865,11 @@ impl ClientCtx {
                 },
                 &mut self.ctx as *mut gss_ctx_id_t,
                 self.target.to_c(),
-                match self.mech {
+                // match by reference: `Oid::to_c` returns a pointer *into*
+                // the Oid. `match self.mech` (by value) would copy it into
+                // an arm-local that is dropped before gss_init_sec_context
+                // dereferences the pointer.
+                match &self.mech {
                     None => NO_OID,
                     Some(mech) => mech.to_c(),
                 },
