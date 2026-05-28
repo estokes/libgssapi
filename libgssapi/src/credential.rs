@@ -37,7 +37,7 @@ pub struct CredInfo {
     pub proxy: Option<Name>,
     pub lifetime: Duration,
     pub usage: CredUsage,
-    pub mechanisms: Option<OidSet>,
+    pub mechanisms: OidSet,
 }
 
 struct CredInfoC {
@@ -310,7 +310,7 @@ impl Cred {
         default: bool,
         usage: CredUsage,
         desired_mech: Option<&Oid>,
-    ) -> Result<(Option<OidSet>, CredUsage), Error> {
+    ) -> Result<(OidSet, CredUsage), Error> {
         let mut minor = GSS_S_COMPLETE;
         let mut elements_stored: gss_OID_set = ptr::null_mut();
         let mut res_usage: gss_cred_usage_t = 0;
@@ -480,9 +480,10 @@ impl Cred {
         }
     }
 
-    /// Return the mechanisms this credential may be used with. Returns
-    /// `None` if gssapi reports no mechanisms; otherwise wraps the set.
-    pub fn mechanisms(&self) -> Result<Option<OidSet>, Error> {
+    /// Return the mechanisms this credential may be used with. If gssapi
+    /// reports no mechanisms the returned set's inner pointer is
+    /// `GSS_C_NO_OID_SET`, which behaves as empty (`len() == 0`).
+    pub fn mechanisms(&self) -> Result<OidSet, Error> {
         unsafe {
             let c = self.info_c(CredInfoC {
                 mechanisms: Some(ptr::null_mut()),

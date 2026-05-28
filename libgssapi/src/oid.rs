@@ -296,51 +296,63 @@ impl fmt::Debug for OidSet {
     }
 }
 
+impl Default for OidSet {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl OidSet {
-    /// Create an empty OID set. I don't know how this can fail unless
-    /// malloc fails.
-    pub fn new() -> Result<OidSet, Error> {
-        let mut minor = GSS_S_COMPLETE;
-        let mut out = ptr::null_mut::<gss_OID_set_desc>();
-        let major = unsafe {
-            gss_create_empty_oid_set(
-                &mut minor as *mut OM_uint32,
-                &mut out as *mut gss_OID_set,
-            )
-        };
-        if major == GSS_S_COMPLETE {
-            Ok(OidSet(out))
-        } else {
-            Err(Error {
-                major: MajorFlags::from_bits_retain(major),
-                minor,
-            })
-        }
+    /// Create an empty OID set. Wraps `GSS_C_NO_OID_SET` (a null pointer);
+    /// the underlying gssapi set is lazily allocated on the first `add`.
+    pub fn new() -> OidSet {
+        OidSet(ptr::null_mut())
     }
 
-    /// Wrap a raw `gss_OID_set` returned by gssapi. Returns `None` for a
-    /// null pointer so that downstream `len`/`Index`/iteration can't
-    /// dereference null.
+    /// Wrap a raw `gss_OID_set` returned by gssapi. A null pointer is
+    /// permitted — gssapi uses `GSS_C_NO_OID_SET` (NULL) as the canonical
+    /// "no preference / empty set" sentinel, and `OidSet`'s methods treat
+    /// a null inner pointer as an empty set.
     #[allow(dead_code)]
-    pub(crate) unsafe fn from_c(ptr: gss_OID_set) -> Option<OidSet> {
-        if ptr.is_null() {
-            None
-        } else {
-            Some(OidSet(ptr))
-        }
+    pub(crate) unsafe fn from_c(ptr: gss_OID_set) -> OidSet {
+        OidSet(ptr)
     }
 
     pub(crate) unsafe fn to_c(&self) -> gss_OID_set {
         self.0
     }
 
-    /// How many oids are in this set
+    /// How many oids are in this set. A null inner pointer
+    /// (`GSS_C_NO_OID_SET`) is treated as empty.
     pub fn len(&self) -> usize {
-        unsafe { (*self.0).count as usize }
+        if self.0.is_null() {
+            0
+        } else {
+            unsafe { (*self.0).count as usize }
+        }
     }
 
-    /// Add an OID to the set.
+    /// Add an OID to the set. If this `OidSet` was constructed from
+    /// `GSS_C_NO_OID_SET` (null inner pointer), a fresh empty set is
+    /// allocated first.
     pub fn add(&mut self, id: &Oid) -> Result<(), Error> {
+        if self.0.is_null() {
+            let mut minor = GSS_S_COMPLETE;
+            let mut out = ptr::null_mut::<gss_OID_set_desc>();
+            let major = unsafe {
+                gss_create_empty_oid_set(
+                    &mut minor as *mut OM_uint32,
+                    &mut out as *mut gss_OID_set,
+                )
+            };
+            if major != GSS_S_COMPLETE {
+                return Err(Error {
+                    major: MajorFlags::from_bits_retain(major),
+                    minor,
+                });
+            }
+            self.0 = out;
+        }
         let mut minor = GSS_S_COMPLETE;
         let major = unsafe {
             gss_add_oid_set_member(
@@ -360,8 +372,12 @@ impl OidSet {
     }
 
     /// Ask gssapi whether it thinks the specified oid is in the
-    /// specified set.
+    /// specified set. A null inner pointer (`GSS_C_NO_OID_SET`) is
+    /// treated as empty and short-circuits to `Ok(false)`.
     pub fn contains(&self, id: &Oid) -> Result<bool, Error> {
+        if self.0.is_null() {
+            return Ok(false);
+        }
         let mut minor = GSS_S_COMPLETE;
         let mut present = 0;
         let major = unsafe {

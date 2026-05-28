@@ -43,7 +43,7 @@
 //!     let server_cred = Cred::acquire(
 //!         Some(&cname), None, CredUsage::Accept, Some(desired_mechs)
 //!     )?;
-//!     Ok((ServerCtx::new(server_cred), cname))
+//!     Ok((ServerCtx::new(Some(server_cred)), cname))
 //! }
 //! 
 //! fn setup_client_ctx(
@@ -60,7 +60,7 @@
 //! 
 //! fn run(service_name: &[u8]) -> Result<(), Error> {
 //!     let desired_mechs = {
-//!         let mut s = OidSet::new()?;
+//!         let mut s = OidSet::new();
 //!         s.add(&GSS_MECH_KRB5)?;
 //!         s
 //!     };
@@ -91,4 +91,44 @@ pub mod util;
 pub mod name;
 pub mod credential;
 pub mod context;
- 
+
+#[cfg(test)]
+mod pure_rust_tests {
+    use crate::context::CtxFlags;
+    use crate::oid::{OidSet, GSS_MECH_KRB5, GSS_NT_USER_NAME};
+    use crate::util::BufRef;
+
+    #[test]
+    fn empty_oidset_is_null_and_zero_len() {
+        let s = OidSet::new();
+        assert_eq!(s.len(), 0);
+        assert!(!s.contains(&GSS_MECH_KRB5).expect("contains on empty set"));
+    }
+
+    #[test]
+    fn oid_equality_is_by_bytes() {
+        assert_eq!(GSS_MECH_KRB5, GSS_MECH_KRB5);
+        assert_ne!(GSS_MECH_KRB5, GSS_NT_USER_NAME);
+    }
+
+    #[test]
+    fn oid_deref_to_ber_bytes() {
+        let bytes: &[u8] = &*GSS_MECH_KRB5;
+        assert!(!bytes.is_empty());
+    }
+
+    // Guards the (non_null, 0) branch in BufRef::deref against future
+    // regressions that might re-introduce from_raw_parts on this path.
+    #[test]
+    fn empty_bufref_deref() {
+        let buf = BufRef::from(&[] as &[u8]);
+        assert!((&*buf).is_empty());
+    }
+
+    #[test]
+    fn ctx_flags_retain_unknown_bits() {
+        let f = CtxFlags::from_bits_retain(0x8000_0000);
+        assert_eq!(f.bits(), 0x8000_0000);
+    }
+}
+

@@ -175,7 +175,7 @@ fn unwrap_secret_msg(ctx: &mut ServerCtx, mut msg: BytesMut) -> Result<BytesMut,
 
 fn run(service_name: &[u8]) -> Result<(), Error> {
     let desired_mechs = {
-        let mut s = OidSet::new()?;
+        let mut s = OidSet::new();
         s.add(&GSS_MECH_KRB5)?;
         s
     };

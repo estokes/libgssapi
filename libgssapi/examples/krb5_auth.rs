@@ -4,7 +4,7 @@ use libgssapi::oid::{OidSet, GSS_MECH_KRB5, GSS_NT_KRB5_PRINCIPAL};
 
 fn main() {
     let desired_mechs = {
-        let mut s = OidSet::new().expect("can't create OIDSet");
+        let mut s = OidSet::new();
         s.add(&GSS_MECH_KRB5).expect("can't add GSS_MECH_KRB5");
         s
     };
