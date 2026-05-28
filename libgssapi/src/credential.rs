@@ -21,15 +21,13 @@ use libgssapi_sys::{
     gss_key_value_element_desc, gss_key_value_set_desc, gss_store_cred_into,
 };
 #[cfg(feature = "s4u")]
-use std::ffi::{CStr, CString};
+use std::ffi::CString;
 use std::{fmt, ptr, sync::Arc, time::Duration};
 
 #[cfg(feature = "store")]
 use crate::oid::{Oid, NO_OID};
 #[cfg(feature = "store")]
 use libgssapi_sys::gss_store_cred;
-#[cfg(feature = "store")]
-use std::ffi::c_int;
 
 pub(crate) const NO_CRED: gss_cred_id_t = ptr::null_mut();
 
@@ -39,7 +37,7 @@ pub struct CredInfo {
     pub proxy: Option<Name>,
     pub lifetime: Duration,
     pub usage: CredUsage,
-    pub mechanisms: OidSet,
+    pub mechanisms: Option<OidSet>,
 }
 
 struct CredInfoC {
@@ -271,7 +269,7 @@ impl Cred {
             minor: 0,
         })?;
         let mut elems = gss_key_value_element_desc {
-            key: CStr::from_bytes_with_nul(b"ccache\0").unwrap().as_ptr(),
+            key: c"ccache".as_ptr(),
             value: ccache.as_ptr(),
         };
         let store = gss_key_value_set_desc {
@@ -312,10 +310,10 @@ impl Cred {
         default: bool,
         usage: CredUsage,
         desired_mech: Option<&Oid>,
-    ) -> Result<(OidSet, CredUsage), Error> {
+    ) -> Result<(Option<OidSet>, CredUsage), Error> {
         let mut minor = GSS_S_COMPLETE;
-        let elements_stored = OidSet::new()?;
-        let res_usage = CredUsage::Both.to_c();
+        let mut elements_stored: gss_OID_set = ptr::null_mut();
+        let mut res_usage: gss_cred_usage_t = 0;
         let major = unsafe {
             gss_store_cred(
                 &mut minor as *mut OM_uint32,
@@ -327,12 +325,15 @@ impl Cred {
                 },
                 overwrite as u32,
                 default as u32,
-                &mut elements_stored.to_c(),
-                &mut (res_usage as c_int) as *mut gss_cred_usage_t,
+                &mut elements_stored as *mut gss_OID_set,
+                &mut res_usage as *mut gss_cred_usage_t,
             )
         };
         if major == GSS_S_COMPLETE {
-            Ok((elements_stored, CredUsage::from_c(res_usage as i32)?))
+            Ok((
+                unsafe { OidSet::from_c(elements_stored) },
+                CredUsage::from_c(res_usage as i32)?,
+            ))
         } else {
             Err(Error {
                 major: MajorFlags::from_bits_retain(major),
@@ -341,6 +342,16 @@ impl Cred {
         }
     }
 
+    /// Take ownership of a raw `gss_cred_id_t`. The returned `Cred` will
+    /// call `gss_release_cred` on it when the last clone is dropped.
+    ///
+    /// # Safety
+    ///
+    /// The caller must transfer sole ownership of `cred` to the returned
+    /// `Cred`. Calling `from_c` twice with the same non-null id (or holding
+    /// any other `Cred` wrapping the same id) will result in a double free
+    /// when both wrappers drop. A null `cred` is permitted; the resulting
+    /// `Cred` is a no-op on drop.
     pub(crate) unsafe fn from_c(cred: gss_cred_id_t) -> Cred {
         Cred::from(cred)
     }
@@ -469,8 +480,9 @@ impl Cred {
         }
     }
 
-    /// Return the mechanisms this credential may be used with
-    pub fn mechanisms(&self) -> Result<OidSet, Error> {
+    /// Return the mechanisms this credential may be used with. Returns
+    /// `None` if gssapi reports no mechanisms; otherwise wraps the set.
+    pub fn mechanisms(&self) -> Result<Option<OidSet>, Error> {
         unsafe {
             let c = self.info_c(CredInfoC {
                 mechanisms: Some(ptr::null_mut()),

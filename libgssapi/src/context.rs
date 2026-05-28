@@ -497,28 +497,28 @@ pub trait SecurityContext {
     fn unwrap_iov(&mut self, msg: &mut [GssIov]) -> Result<(), Error>;
 
     /// Get all information about a security context in one call
-    fn info(&mut self) -> Result<CtxInfo, Error>;
+    fn info(&self) -> Result<CtxInfo, Error>;
 
     /// Get the source name of the security context
-    fn source_name(&mut self) -> Result<Name, Error>;
+    fn source_name(&self) -> Result<Name, Error>;
 
     /// Get the target name of the security context
-    fn target_name(&mut self) -> Result<Name, Error>;
+    fn target_name(&self) -> Result<Name, Error>;
 
     /// Get the lifetime of the security context
-    fn lifetime(&mut self) -> Result<Duration, Error>;
+    fn lifetime(&self) -> Result<Duration, Error>;
 
     /// Get the mechanism of the security context
-    fn mechanism(&mut self) -> Result<&'static Oid, Error>;
+    fn mechanism(&self) -> Result<&'static Oid, Error>;
 
     /// Get the flags of the security context
-    fn flags(&mut self) -> Result<CtxFlags, Error>;
+    fn flags(&self) -> Result<CtxFlags, Error>;
 
     /// Return true if the security context was locally initiated
-    fn local(&mut self) -> Result<bool, Error>;
+    fn local(&self) -> Result<bool, Error>;
 
     /// Return true if the security context is open
-    fn open(&mut self) -> Result<bool, Error>;
+    fn open(&self) -> Result<bool, Error>;
 
     /// Return true if the security context is fully initialized
     fn is_complete(&self) -> bool;
@@ -613,9 +613,7 @@ impl ServerCtx {
                 },
             }
         }
-        if let Some(new_flags) = CtxFlags::from_bits(flag_bits) {
-            self.flags.insert(new_flags);
-        }
+        self.flags.insert(CtxFlags::from_bits_retain(flag_bits));
         if gss_error(major) > 0 {
             let e = Error {
                 major: MajorFlags::from_bits_retain(major),
@@ -681,35 +679,35 @@ impl SecurityContext for ServerCtx {
         unsafe { verify_mic(self.ctx, msg, tok) }
     }
 
-    fn info(&mut self) -> Result<CtxInfo, Error> {
+    fn info(&self) -> Result<CtxInfo, Error> {
         unsafe { full_info(self.ctx) }
     }
 
-    fn source_name(&mut self) -> Result<Name, Error> {
+    fn source_name(&self) -> Result<Name, Error> {
         unsafe { source_name(self.ctx) }
     }
 
-    fn target_name(&mut self) -> Result<Name, Error> {
+    fn target_name(&self) -> Result<Name, Error> {
         unsafe { target_name(self.ctx) }
     }
 
-    fn lifetime(&mut self) -> Result<Duration, Error> {
+    fn lifetime(&self) -> Result<Duration, Error> {
         unsafe { lifetime(self.ctx) }
     }
 
-    fn mechanism(&mut self) -> Result<&'static Oid, Error> {
+    fn mechanism(&self) -> Result<&'static Oid, Error> {
         unsafe { mechanism(self.ctx) }
     }
 
-    fn flags(&mut self) -> Result<CtxFlags, Error> {
+    fn flags(&self) -> Result<CtxFlags, Error> {
         unsafe { flags(self.ctx) }
     }
 
-    fn local(&mut self) -> Result<bool, Error> {
+    fn local(&self) -> Result<bool, Error> {
         unsafe { local(self.ctx) }
     }
 
-    fn open(&mut self) -> Result<bool, Error> {
+    fn open(&self) -> Result<bool, Error> {
         unsafe { open(self.ctx) }
     }
 
@@ -847,9 +845,7 @@ impl ClientCtx {
                 ptr::null_mut::<OM_uint32>(),
             )
         };
-        if let Some(new_flags) = CtxFlags::from_bits(flag_bits) {
-            self.flags.insert(new_flags);
-        }
+        self.flags.insert(CtxFlags::from_bits_retain(flag_bits));
         if gss_error(major) > 0 {
             let e = Error {
                 major: MajorFlags::from_bits_retain(major),
@@ -907,35 +903,35 @@ impl SecurityContext for ClientCtx {
         unsafe { verify_mic(self.ctx, msg, tok) }
     }
 
-    fn info(&mut self) -> Result<CtxInfo, Error> {
+    fn info(&self) -> Result<CtxInfo, Error> {
         unsafe { full_info(self.ctx) }
     }
 
-    fn source_name(&mut self) -> Result<Name, Error> {
+    fn source_name(&self) -> Result<Name, Error> {
         unsafe { source_name(self.ctx) }
     }
 
-    fn target_name(&mut self) -> Result<Name, Error> {
+    fn target_name(&self) -> Result<Name, Error> {
         unsafe { target_name(self.ctx) }
     }
 
-    fn lifetime(&mut self) -> Result<Duration, Error> {
+    fn lifetime(&self) -> Result<Duration, Error> {
         unsafe { lifetime(self.ctx) }
     }
 
-    fn mechanism(&mut self) -> Result<&'static Oid, Error> {
+    fn mechanism(&self) -> Result<&'static Oid, Error> {
         unsafe { mechanism(self.ctx) }
     }
 
-    fn flags(&mut self) -> Result<CtxFlags, Error> {
+    fn flags(&self) -> Result<CtxFlags, Error> {
         unsafe { flags(self.ctx) }
     }
 
-    fn local(&mut self) -> Result<bool, Error> {
+    fn local(&self) -> Result<bool, Error> {
         unsafe { local(self.ctx) }
     }
 
-    fn open(&mut self) -> Result<bool, Error> {
+    fn open(&self) -> Result<bool, Error> {
         unsafe { open(self.ctx) }
     }
 

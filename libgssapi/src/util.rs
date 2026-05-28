@@ -22,6 +22,7 @@ mod iov {
         GSS_IOV_BUFFER_TYPE_SIGN_ONLY, GSS_IOV_BUFFER_TYPE_STREAM,
         GSS_IOV_BUFFER_TYPE_TRAILER,
     };
+    use std::mem::ManuallyDrop;
     const GSS_IOV_BUFFER_FLAG_MASK: u32 = 0xFFFF0000;
     #[derive(Debug, Clone, Copy)]
     pub enum GssIovType {
@@ -70,6 +71,21 @@ mod iov {
     #[derive(Debug)]
     pub struct GssIovFake(gss_iov_buffer_desc);
 
+    impl Drop for GssIovFake {
+        fn drop(&mut self) {
+            if self.0.type_ & GSS_IOV_BUFFER_FLAG_MASK & GSS_IOV_BUFFER_FLAG_ALLOCATED > 0
+            {
+                let mut minor = GSS_S_COMPLETE;
+                let _major = unsafe {
+                    gss_release_buffer(
+                        &mut minor as *mut OM_uint32,
+                        &mut self.0.buffer as gss_buffer_t,
+                    )
+                };
+            }
+        }
+    }
+
     impl GssIovFake {
         /// Create a fake Iov for calls to wrap_iov_length
         pub fn new(typ: GssIovType) -> GssIovFake {
@@ -116,7 +132,7 @@ mod iov {
 
         fn deref(&self) -> &Self::Target {
             let buf = self.0.buffer;
-            if buf.value.is_null() && buf.length == 0 {
+            if buf.value.is_null() || buf.length == 0 {
                 &[]
             } else {
                 unsafe { slice::from_raw_parts(buf.value.cast(), buf.length as usize) }
@@ -128,7 +144,7 @@ mod iov {
         fn deref_mut(&mut self) -> &mut Self::Target {
             let buf = self.0.buffer;
             unsafe {
-                if buf.value.is_null() && buf.length == 0 {
+                if buf.value.is_null() || buf.length == 0 {
                     &mut []
                 } else {
                     slice::from_raw_parts_mut(buf.value.cast(), buf.length as usize)
@@ -168,9 +184,11 @@ mod iov {
         }
 
         /// cast a real iov to a fake one. You need to do this for the
-        /// DATA buffer for the call to `wrap_iov_length`.
+        /// DATA buffer for the call to `wrap_iov_length`. Ownership of any
+        /// gssapi-allocated buffer transfers to the returned `GssIovFake`.
         pub fn as_fake(self) -> GssIovFake {
-            GssIovFake(self.0)
+            let me = ManuallyDrop::new(self);
+            GssIovFake(me.0)
         }
 
         /// In the special case where you unwrap a token using the
@@ -212,7 +230,7 @@ impl<'a> Deref for BufRef<'a> {
     type Target = [u8];
 
     fn deref(&self) -> &Self::Target {
-        if self.0.value.is_null() && self.0.length == 0 {
+        if self.0.value.is_null() || self.0.length == 0 {
             &[]
         } else {
             unsafe { slice::from_raw_parts(self.0.value.cast(), self.0.length as usize) }
@@ -251,7 +269,7 @@ impl Deref for Buf {
 
     fn deref(&self) -> &Self::Target {
         unsafe {
-            if self.0.value.is_null() && self.0.length == 0 {
+            if self.0.value.is_null() || self.0.length == 0 {
                 &[]
             } else {
                 slice::from_raw_parts(self.0.value.cast(), self.0.length as usize)
@@ -263,7 +281,7 @@ impl Deref for Buf {
 impl DerefMut for Buf {
     fn deref_mut(&mut self) -> &mut Self::Target {
         unsafe {
-            if self.0.value.is_null() && self.0.length == 0 {
+            if self.0.value.is_null() || self.0.length == 0 {
                 &mut []
             } else {
                 slice::from_raw_parts_mut(self.0.value.cast(), self.0.length as usize)
@@ -356,9 +374,9 @@ mod s4u {
     impl<'a> Deref for BufSet<'a> {
         type Target = [BufRef<'a>];
 
-        fn deref(&self) -> &'a Self::Target {
+        fn deref(&self) -> &Self::Target {
             if self.0.is_null()
-                || unsafe { (*self.0).elements.is_null() && (*self.0).count == 0 }
+                || unsafe { (*self.0).elements.is_null() || (*self.0).count == 0 }
             {
                 &[]
             } else {
@@ -373,9 +391,9 @@ mod s4u {
     }
 
     impl<'a> DerefMut for BufSet<'a> {
-        fn deref_mut(&mut self) -> &'a mut Self::Target {
+        fn deref_mut(&mut self) -> &mut Self::Target {
             if self.0.is_null()
-                || unsafe { (*self.0).elements.is_null() && (*self.0).count == 0 }
+                || unsafe { (*self.0).elements.is_null() || (*self.0).count == 0 }
             {
                 &mut []
             } else {

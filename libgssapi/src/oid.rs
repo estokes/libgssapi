@@ -19,7 +19,6 @@ use std::{
     os::raw::c_int,
 };
 
-// CR estokes: do I need the attributes from rfc 5587? There are loads of them.
 pub static GSS_NT_USER_NAME: Oid =
     Oid::from_slice(b"\x2a\x86\x48\x86\xf7\x12\x01\x02\x01\x01");
 
@@ -185,8 +184,18 @@ impl From<gss_OID_desc> for Oid {
 }
 
 impl Oid {
+    /// Reborrow a raw `gss_OID` returned by gssapi as a static reference.
+    ///
+    /// # Safety
+    ///
+    /// The caller must ensure `ptr` points to a mechanism OID owned by the
+    /// gssapi library (e.g. the output of `gss_inquire_context` or
+    /// `gss_inquire_cred`). RFC 2744 §3.2 requires mechanism OIDs to be
+    /// stored in static memory, so the `'static` lifetime is sound for those
+    /// pointers. Do not use this with OIDs that live inside a heap-allocated
+    /// `gss_OID_set` — those are freed with the set.
     #[allow(dead_code)]
-    pub(crate) unsafe fn from_c<'a>(ptr: gss_OID) -> &'a Oid {
+    pub(crate) unsafe fn from_c(ptr: gss_OID) -> &'static Oid {
         &*(ptr as *const Oid)
     }
 
@@ -253,7 +262,6 @@ impl Drop for OidSet {
                 )
             };
         }
-        // CR estokes: What to do on error?
     }
 }
 
@@ -310,9 +318,16 @@ impl OidSet {
         }
     }
 
+    /// Wrap a raw `gss_OID_set` returned by gssapi. Returns `None` for a
+    /// null pointer so that downstream `len`/`Index`/iteration can't
+    /// dereference null.
     #[allow(dead_code)]
-    pub(crate) unsafe fn from_c(ptr: gss_OID_set) -> OidSet {
-        OidSet(ptr)
+    pub(crate) unsafe fn from_c(ptr: gss_OID_set) -> Option<OidSet> {
+        if ptr.is_null() {
+            None
+        } else {
+            Some(OidSet(ptr))
+        }
     }
 
     pub(crate) unsafe fn to_c(&self) -> gss_OID_set {

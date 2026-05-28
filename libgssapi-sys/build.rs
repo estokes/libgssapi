@@ -6,7 +6,7 @@ fn search_pat(base: &str, pat: &str) -> bool {
         .arg("-name")
         .arg(pat)
         .output();
-    match dbg!(res) {
+    match res {
         Err(_) => false,
         Ok(output) => output.stdout.len() > 0,
     }
@@ -49,8 +49,8 @@ fn which() -> Gssapi {
         let ldpath = env::var("LD_LIBRARY_PATH").unwrap_or(String::new());
         let paths = vec!["/lib", "/lib64", "/usr/lib", "/usr/lib64"];
         let krb5_path = Command::new("krb5-config")
-            .arg("--prefix")
             .arg("gssapi")
+            .arg("--prefix")
             .output()
             .map(|o| o.stdout)
             .ok()
