@@ -9,10 +9,16 @@ fn main() {
         s
     };
 
-    let name = Name::new("user@EXAMPLE.ORG".as_ref(), Some(&GSS_NT_KRB5_PRINCIPAL)).expect("can't create name");
-    let cred = Cred::pass_acquire(
-        Some(&name), "SuperSecret", None, CredUsage::Initiate, Some(&desired_mechs)
-    ).expect("can't create credential");
+    let name = Name::new("user@EXAMPLE.ORG".as_ref(), Some(&GSS_NT_KRB5_PRINCIPAL))
+        .expect("can't create name");
+    let cred = Cred::acquire_with_password(
+        Some(&name),
+        "SuperSecret",
+        None,
+        CredUsage::Initiate,
+        Some(&desired_mechs),
+    )
+    .expect("can't create credential");
 
     println!("cred: {:?}", cred);
 }

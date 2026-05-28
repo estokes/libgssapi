@@ -14,6 +14,7 @@ categories = ["api-bindings", "authentication", "cryptography", "os::unix-apis"]
 
 [features]
 default = ["iov", "localname", "store"]
+all = ["iov", "localname", "s4u", "store"]
 iov = []
 s4u = []
 localname = []

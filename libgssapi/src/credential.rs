@@ -12,8 +12,8 @@ use crate::{
 use libgssapi_sys::{
     gss_OID_set, gss_acquire_cred, gss_acquire_cred_with_password, gss_cred_id_struct,
     gss_cred_id_t, gss_cred_usage_t, gss_inquire_cred, gss_name_struct, gss_name_t,
-    gss_release_cred, OM_uint32, GSS_C_ACCEPT, GSS_C_BOTH, GSS_C_INITIATE,
-    GSS_S_COMPLETE, _GSS_C_INDEFINITE,
+    gss_release_cred, OM_uint32, _GSS_C_INDEFINITE, GSS_C_ACCEPT, GSS_C_BOTH,
+    GSS_C_INITIATE, GSS_S_COMPLETE,
 };
 #[cfg(feature = "s4u")]
 use libgssapi_sys::{
@@ -491,10 +491,11 @@ mod tests {
             .expect("Failed to acquire credential");
     }
 
+    #[cfg(feature = "store")]
     #[test]
     fn test_gss_store() {
         let c = unsafe { Cred::from_c(NO_CRED) };
-        c.store_default(true, true, CredUsage::Both, None)
+        c.store(true, true, CredUsage::Both, None)
             .expect_err("Expected error when storing empty credential");
     }
 }
