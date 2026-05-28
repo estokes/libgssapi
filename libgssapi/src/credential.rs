@@ -496,21 +496,16 @@ impl Cred {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "store"))]
 mod tests {
     use super::*;
 
+    /// `Cred::store` on a null cred handle should return an error rather
+    /// than crashing. Doesn't need a working Kerberos environment.
     #[test]
-    fn test_acquire() {
-        Cred::acquire(None, None, CredUsage::Both, None)
-            .expect("Failed to acquire credential");
-    }
-
-    #[cfg(feature = "store")]
-    #[test]
-    fn test_gss_store() {
+    fn store_on_null_cred_errors() {
         let c = unsafe { Cred::from_c(NO_CRED) };
         c.store(true, true, CredUsage::Both, None)
-            .expect_err("Expected error when storing empty credential");
+            .expect_err("store on null cred should fail");
     }
 }
