@@ -140,18 +140,12 @@ mod iov {
         }
     }
 
-    impl<'a> DerefMut for GssIov<'a> {
-        fn deref_mut(&mut self) -> &mut Self::Target {
-            let buf = self.0.buffer;
-            unsafe {
-                if buf.value.is_null() || buf.length == 0 {
-                    &mut []
-                } else {
-                    slice::from_raw_parts_mut(buf.value.cast(), buf.length as usize)
-                }
-            }
-        }
-    }
+    // `DerefMut` was intentionally removed: after `unwrap_iov` on a STREAM
+    // token, gssapi may set a DATA `GssIov`'s buffer to point inside the
+    // STREAM `GssIov`'s buffer. Safe code could then `split_at_mut` the
+    // surrounding `&mut [GssIov]` and call `DerefMut` on both halves,
+    // producing two `&mut [u8]` that alias — instant UB by Rust's aliasing
+    // rules. Use `unsafe fn as_mut_slice` below when mutation is needed.
 
     impl<'a> GssIov<'a> {
         /// Create a new real Iov for calls to wrap_iov.
@@ -198,16 +192,42 @@ mod iov {
         /// copying it. This function will tell you that length. Don't use
         /// it otherwise.
         pub fn header_length(&self, data: &GssIov<'a>) -> Option<usize> {
-            match GssIovType::from_c(self.0.type_) {
-                Some(GssIovType::Stream) => {
-                    Some(data.0.buffer.value as usize - self.0.buffer.value as usize)
-                }
-                _ => None,
+            if !matches!(GssIovType::from_c(self.0.type_), Some(GssIovType::Stream)) {
+                return None;
             }
+            let stream = self.0.buffer.value;
+            let data = data.0.buffer.value;
+            if stream.is_null() || data.is_null() {
+                return None;
+            }
+            (data as usize).checked_sub(stream as usize)
         }
 
         pub fn len(&self) -> usize {
             self.0.buffer.length as usize
+        }
+
+        /// Mutable view of the underlying buffer. Provided as `unsafe`
+        /// because `unwrap_iov` in stream mode can make a DATA `GssIov`'s
+        /// buffer overlap with the STREAM `GssIov`'s buffer; if both are
+        /// reachable through a `&mut [GssIov]`, calling this on both
+        /// produces aliased `&mut [u8]` and is undefined behavior.
+        ///
+        /// # Safety
+        ///
+        /// The caller must ensure that the returned `&mut [u8]` does not
+        /// alias any other reachable `&mut [u8]` derived from another
+        /// `GssIov` in the same batch. In the common case of disjoint
+        /// caller-supplied buffers (e.g. building iovs from separate
+        /// `BytesMut` chunks before `wrap_iov`), this is automatic; the
+        /// hazardous case is after `unwrap_iov` with a STREAM token.
+        pub unsafe fn as_mut_slice(&mut self) -> &mut [u8] {
+            let buf = self.0.buffer;
+            if buf.value.is_null() || buf.length == 0 {
+                &mut []
+            } else {
+                unsafe { slice::from_raw_parts_mut(buf.value.cast(), buf.length as usize) }
+            }
         }
     }
 }

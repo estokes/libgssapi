@@ -110,12 +110,6 @@ unsafe impl Sync for CredInner {}
 #[derive(Clone)]
 pub struct Cred(Arc<CredInner>);
 
-impl From<gss_cred_id_t> for Cred {
-    fn from(id: gss_cred_id_t) -> Self {
-        Cred(Arc::new(CredInner(id)))
-    }
-}
-
 impl fmt::Debug for Cred {
     fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
         match self.info() {
@@ -161,7 +155,7 @@ impl Cred {
             )
         };
         if major == GSS_S_COMPLETE {
-            Ok(Cred::from(cred))
+            Ok(unsafe { Cred::from_c(cred) })
         } else {
             Err(Error {
                 major: MajorFlags::from_bits_retain(major),
@@ -203,7 +197,7 @@ impl Cred {
             )
         };
         if major == GSS_S_COMPLETE {
-            Ok(Cred::from(cred))
+            Ok(unsafe { Cred::from_c(cred) })
         } else {
             Err(Error {
                 major: MajorFlags::from_bits_retain(major),
@@ -243,7 +237,7 @@ impl Cred {
             )
         };
         if major == GSS_S_COMPLETE {
-            Ok(Cred::from(cred))
+            Ok(unsafe { Cred::from_c(cred) })
         } else {
             Err(Error {
                 major: MajorFlags::from_bits_retain(major),
@@ -260,7 +254,7 @@ impl Cred {
         overwrite: bool,
         default: bool,
         usage: CredUsage,
-        desired_mech: Option<&Oid>,
+        desired_mech: Option<Oid<'_>>,
     ) -> Result<(), Error> {
         let mut minor = GSS_S_COMPLETE;
         let usage = usage.to_c();
@@ -309,7 +303,7 @@ impl Cred {
         overwrite: bool,
         default: bool,
         usage: CredUsage,
-        desired_mech: Option<&Oid>,
+        desired_mech: Option<Oid<'_>>,
     ) -> Result<(OidSet, CredUsage), Error> {
         let mut minor = GSS_S_COMPLETE;
         let mut elements_stored: gss_OID_set = ptr::null_mut();
@@ -352,8 +346,8 @@ impl Cred {
     /// any other `Cred` wrapping the same id) will result in a double free
     /// when both wrappers drop. A null `cred` is permitted; the resulting
     /// `Cred` is a no-op on drop.
-    pub(crate) unsafe fn from_c(cred: gss_cred_id_t) -> Cred {
-        Cred::from(cred)
+    pub unsafe fn from_c(cred: gss_cred_id_t) -> Cred {
+        Cred(Arc::new(CredInner(cred)))
     }
 
     pub(crate) unsafe fn to_c(&self) -> gss_cred_id_t {
@@ -450,7 +444,7 @@ impl Cred {
                 })
             } else {
                 if let Some(name) = out.first() {
-                    Name::new(name, Some(&GSS_NT_HOSTBASED_SERVICE)).map(Into::into)
+                    Name::new(name, Some(GSS_NT_HOSTBASED_SERVICE)).map(Into::into)
                 } else {
                     Ok(None)
                 }

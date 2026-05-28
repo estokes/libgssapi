@@ -37,13 +37,13 @@ fn store_returns_real_elements_and_usage() {
     kdc.apply_env();
 
     let mut desired_mechs = OidSet::new();
-    desired_mechs.add(&GSS_MECH_KRB5).unwrap();
+    desired_mechs.add(GSS_MECH_KRB5).unwrap();
 
     let cred = Cred::acquire(None, None, CredUsage::Initiate, Some(&desired_mechs))
         .expect("acquire cred");
 
     let (elements_stored, usage_stored) = cred
-        .store(true, true, CredUsage::Initiate, Some(&GSS_MECH_KRB5))
+        .store(true, true, CredUsage::Initiate, Some(GSS_MECH_KRB5))
         .unwrap_or_else(|e| panic!("store: {e}"));
 
     assert!(
@@ -51,7 +51,7 @@ fn store_returns_real_elements_and_usage() {
         "elements_stored should be non-empty after a successful store"
     );
     assert!(
-        elements_stored.contains(&GSS_MECH_KRB5).unwrap(),
+        elements_stored.contains(GSS_MECH_KRB5).unwrap(),
         "elements_stored should contain GSS_MECH_KRB5"
     );
 

@@ -38,8 +38,8 @@
 //!     service_name: &[u8],
 //!     desired_mechs: &OidSet
 //! ) -> Result<(ServerCtx, Name), Error> {
-//!     let name = Name::new(service_name, Some(&GSS_NT_HOSTBASED_SERVICE))?;
-//!     let cname = name.canonicalize(Some(&GSS_MECH_KRB5))?;
+//!     let name = Name::new(service_name, Some(GSS_NT_HOSTBASED_SERVICE))?;
+//!     let cname = name.canonicalize(Some(GSS_MECH_KRB5))?;
 //!     let server_cred = Cred::acquire(
 //!         Some(&cname), None, CredUsage::Accept, Some(desired_mechs)
 //!     )?;
@@ -54,14 +54,14 @@
 //!         None, None, CredUsage::Initiate, Some(&desired_mechs)
 //!     )?;
 //!     Ok(ClientCtx::new(
-//!         Some(client_cred), service_name, CtxFlags::GSS_C_MUTUAL_FLAG, Some(&GSS_MECH_KRB5)
+//!         Some(client_cred), service_name, CtxFlags::GSS_C_MUTUAL_FLAG, Some(GSS_MECH_KRB5)
 //!     ))
 //! }
 //! 
 //! fn run(service_name: &[u8]) -> Result<(), Error> {
 //!     let desired_mechs = {
 //!         let mut s = OidSet::new();
-//!         s.add(&GSS_MECH_KRB5)?;
+//!         s.add(GSS_MECH_KRB5)?;
 //!         s
 //!     };
 //!     let (mut server_ctx, cname) = setup_server_ctx(service_name, &desired_mechs)?;
@@ -97,14 +97,22 @@ pub mod context;
 #[cfg(test)]
 mod pure_rust_tests {
     use crate::context::CtxFlags;
-    use crate::oid::{OidSet, GSS_MECH_KRB5, GSS_NT_USER_NAME};
+    use crate::oid::{OidSet, GSS_MECH_KRB5, GSS_NT_ANONYMOUS, GSS_NT_USER_NAME};
     use crate::util::BufRef;
+
+    // Regression: the literal previously used `\01` which Rust parses as
+    // `\0` + ASCII '1' (two bytes), not octal 1. The real RFC 2078 OID is
+    // 6 bytes: 2b 06 01 05 06 03.
+    #[test]
+    fn anonymous_oid_has_correct_bytes() {
+        assert_eq!(&*GSS_NT_ANONYMOUS, b"\x2b\x06\x01\x05\x06\x03");
+    }
 
     #[test]
     fn empty_oidset_is_null_and_zero_len() {
         let s = OidSet::new();
         assert_eq!(s.len(), 0);
-        assert!(!s.contains(&GSS_MECH_KRB5).expect("contains on empty set"));
+        assert!(!s.contains(GSS_MECH_KRB5).expect("contains on empty set"));
     }
 
     #[test]

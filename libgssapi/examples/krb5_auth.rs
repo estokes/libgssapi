@@ -5,11 +5,11 @@ use libgssapi::oid::{OidSet, GSS_MECH_KRB5, GSS_NT_KRB5_PRINCIPAL};
 fn main() {
     let desired_mechs = {
         let mut s = OidSet::new();
-        s.add(&GSS_MECH_KRB5).expect("can't add GSS_MECH_KRB5");
+        s.add(GSS_MECH_KRB5).expect("can't add GSS_MECH_KRB5");
         s
     };
 
-    let name = Name::new("user@EXAMPLE.ORG".as_ref(), Some(&GSS_NT_KRB5_PRINCIPAL))
+    let name = Name::new("user@EXAMPLE.ORG".as_ref(), Some(GSS_NT_KRB5_PRINCIPAL))
         .expect("can't create name");
     let cred = Cred::acquire_with_password(
         Some(&name),

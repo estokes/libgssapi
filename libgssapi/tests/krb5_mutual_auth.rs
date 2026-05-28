@@ -22,10 +22,10 @@ fn mutual_auth_handshake_and_wrap() {
     kdc.apply_env();
 
     let mut desired_mechs = OidSet::new();
-    desired_mechs.add(&GSS_MECH_KRB5).unwrap();
+    desired_mechs.add(GSS_MECH_KRB5).unwrap();
 
-    let target = Name::new(b"nfs@test.example.com", Some(&GSS_NT_HOSTBASED_SERVICE)).unwrap();
-    let cname = target.canonicalize(Some(&GSS_MECH_KRB5)).unwrap();
+    let target = Name::new(b"nfs@test.example.com", Some(GSS_NT_HOSTBASED_SERVICE)).unwrap();
+    let cname = target.canonicalize(Some(GSS_MECH_KRB5)).unwrap();
 
     let server_cred = Cred::acquire(
         Some(&cname),
@@ -42,7 +42,7 @@ fn mutual_auth_handshake_and_wrap() {
         Some(client_cred),
         cname,
         CtxFlags::GSS_C_MUTUAL_FLAG,
-        Some(&GSS_MECH_KRB5),
+        Some(GSS_MECH_KRB5),
     );
 
     let mut server_tok: Option<Buf> = None;

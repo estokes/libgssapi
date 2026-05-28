@@ -19,8 +19,8 @@ fn setup_server_ctx(
     desired_mechs: &OidSet,
 ) -> Result<(ServerCtx, Name), Error> {
     println!("import name");
-    let name = Name::new(service_name, Some(&GSS_NT_HOSTBASED_SERVICE))?;
-    let cname = name.canonicalize(Some(&GSS_MECH_KRB5))?;
+    let name = Name::new(service_name, Some(GSS_NT_HOSTBASED_SERVICE))?;
+    let cname = name.canonicalize(Some(GSS_MECH_KRB5))?;
     println!("canonicalize name for kerberos 5");
     println!("server name: {}, server cname: {}", name, cname);
     let server_cred =
@@ -43,7 +43,7 @@ fn setup_client_ctx(
         Some(client_cred),
         service_name,
         CtxFlags::GSS_C_MUTUAL_FLAG,
-        Some(&GSS_MECH_KRB5),
+        Some(GSS_MECH_KRB5),
     ))
 }
 
@@ -176,7 +176,7 @@ fn unwrap_secret_msg(ctx: &mut ServerCtx, mut msg: BytesMut) -> Result<BytesMut,
 fn run(service_name: &[u8]) -> Result<(), Error> {
     let desired_mechs = {
         let mut s = OidSet::new();
-        s.add(&GSS_MECH_KRB5)?;
+        s.add(GSS_MECH_KRB5)?;
         s
     };
     let (mut server_ctx, cname) = setup_server_ctx(service_name, &desired_mechs)?;

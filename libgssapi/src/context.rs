@@ -232,7 +232,7 @@ pub struct CtxInfo {
     pub source_name: Name,
     pub target_name: Name,
     pub lifetime: Duration,
-    pub mechanism: &'static Oid,
+    pub mechanism: Oid<'static>,
     pub flags: CtxFlags,
     pub local: bool,
     pub open: bool,
@@ -380,7 +380,7 @@ unsafe fn lifetime(ctx: gss_ctx_id_t) -> Result<Duration, Error> {
     Ok(Duration::from_secs(c.lifetime.unwrap() as u64))
 }
 
-unsafe fn mechanism(ctx: gss_ctx_id_t) -> Result<&'static Oid, Error> {
+unsafe fn mechanism(ctx: gss_ctx_id_t) -> Result<Oid<'static>, Error> {
     let c = unsafe {
         info(
             ctx,
@@ -541,7 +541,7 @@ pub trait SecurityContext {
     fn lifetime(&self) -> Result<Duration, Error>;
 
     /// Get the mechanism of the security context
-    fn mechanism(&self) -> Result<&'static Oid, Error>;
+    fn mechanism(&self) -> Result<Oid<'static>, Error>;
 
     /// Get the flags of the security context
     fn flags(&self) -> Result<CtxFlags, Error>;
@@ -580,8 +580,13 @@ impl Drop for ServerCtx {
     }
 }
 
+// Single-owner transfer between threads is fine; concurrent shared access
+// is not — RFC 2744 / MIT explicitly says "calls that operate on a single
+// security context cannot be issued concurrently from multiple threads",
+// which applies to our `&self` inquiry methods as much as to `&mut self`.
+// Callers who need to share a context across threads should wrap it in
+// `Mutex<ServerCtx>`.
 unsafe impl Send for ServerCtx {}
-unsafe impl Sync for ServerCtx {}
 
 impl ServerCtx {
     /// Create a new uninitialized server context with the specified
@@ -727,7 +732,7 @@ impl SecurityContext for ServerCtx {
         unsafe { lifetime(self.ctx) }
     }
 
-    fn mechanism(&self) -> Result<&'static Oid, Error> {
+    fn mechanism(&self) -> Result<Oid<'static>, Error> {
         unsafe { mechanism(self.ctx) }
     }
 
@@ -769,7 +774,7 @@ pub struct ClientCtx {
     target: Name,
     flags: CtxFlags,
     state: ClientCtxState,
-    mech: Option<&'static Oid>,
+    mech: Option<Oid<'static>>,
 }
 
 impl Drop for ClientCtx {
@@ -778,8 +783,8 @@ impl Drop for ClientCtx {
     }
 }
 
+// See the note on `ServerCtx`'s Send impl. Same reasoning here.
 unsafe impl Send for ClientCtx {}
-unsafe impl Sync for ClientCtx {}
 
 impl ClientCtx {
     /// Create a new uninitialized client security context using the
@@ -791,7 +796,7 @@ impl ClientCtx {
         cred: Option<Cred>,
         target: Name,
         flags: CtxFlags,
-        mech: Option<&'static Oid>,
+        mech: Option<Oid<'static>>,
     ) -> ClientCtx {
         ClientCtx {
             ctx: ptr::null_mut(),
@@ -951,7 +956,7 @@ impl SecurityContext for ClientCtx {
         unsafe { lifetime(self.ctx) }
     }
 
-    fn mechanism(&self) -> Result<&'static Oid, Error> {
+    fn mechanism(&self) -> Result<Oid<'static>, Error> {
         unsafe { mechanism(self.ctx) }
     }
 

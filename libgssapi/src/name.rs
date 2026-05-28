@@ -66,7 +66,7 @@ impl Name {
     /// parse the specified bytes as a gssapi name, with optional
     /// `kind` e.g. `GSS_NT_HOSTBASED_SERVICE` or
     /// `GSS_NT_KRB5_PRINCIPAL`.
-    pub fn new(s: &[u8], kind: Option<&Oid>) -> Result<Self, Error> {
+    pub fn new(s: &[u8], kind: Option<Oid<'_>>) -> Result<Self, Error> {
         let mut buf = BufRef::from(s);
         let mut minor = GSS_S_COMPLETE;
         let mut name = ptr::null_mut::<gss_name_struct>();
@@ -94,7 +94,7 @@ impl Name {
     /// canonicalize a name for the specified mechanism (or the
     /// default mechanism if not specified). This makes a copy of the
     /// name.
-    pub fn canonicalize(&self, mech: Option<&Oid>) -> Result<Self, Error> {
+    pub fn canonicalize(&self, mech: Option<Oid<'_>>) -> Result<Self, Error> {
         let mut out = ptr::null_mut::<gss_name_struct>();
         let mut minor = GSS_S_COMPLETE;
         let major = unsafe {
@@ -170,7 +170,7 @@ impl Name {
     /// as interpreted by the specified mechanism. If no mechanism is
     /// specified then it will be assumed to be NO_OID.
     #[cfg(feature = "localname")]
-    pub fn local_name(&self, mechs: Option<&Oid>) -> Result<Buf, Error> {
+    pub fn local_name(&self, mechs: Option<Oid<'_>>) -> Result<Buf, Error> {
         let mut out = Buf::empty();
         let mut minor = GSS_S_COMPLETE;
         let major = unsafe {
