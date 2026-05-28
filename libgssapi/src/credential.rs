@@ -492,9 +492,10 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "store")]
     fn test_gss_store() {
         let c = unsafe { Cred::from_c(NO_CRED) };
-        c.store_default(true, true, CredUsage::Both, None)
+        c.store(true, true, CredUsage::Both, None)
             .expect_err("Expected error when storing empty credential");
     }
 }
