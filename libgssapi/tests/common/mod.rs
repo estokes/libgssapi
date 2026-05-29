@@ -10,17 +10,30 @@
 // * exposes helpers to add principals, export keytabs, kinit users
 // * on Drop, kills the KDC process and the tempdir cleans itself up
 //
-// Integration tests using this fixture MUST be run with `--test-threads=1`
-// because the apply_env() helper sets process-wide env vars (KRB5_CONFIG,
-// KRB5_KTNAME, KRB5CCNAME, KRB5RCACHENAME).
+// The apply_env() helper sets process-wide env vars (KRB5_CONFIG,
+// KRB5_KTNAME, KRB5CCNAME, KRB5RCACHENAME) and returns a guard over
+// TEST_ENV_LOCK; a test holds that guard for its duration. This serializes
+// the env-dependent section across tests, so the suite is safe under a
+// plain `cargo test` — no `--test-threads=1` required.
 
 use std::fs;
 use std::io::Write;
 use std::net::TcpListener;
+use std::os::unix::process::CommandExt;
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
+use std::sync::{Mutex, MutexGuard, PoisonError};
 use std::thread;
 use std::time::{Duration, Instant};
+
+// Serializes the process-global Kerberos env (KRB5_CONFIG, KRB5CCNAME, ...)
+// that apply_env() writes and that every libgssapi call reads. A test holds
+// this guard for its whole body, so the suite is correct under any
+// --test-threads value: without it, two concurrent tests would clobber each
+// other's env between apply_env() and their GSSAPI calls, and the loser —
+// pointed at a ccache with no ticket — would fall back to an interactive
+// krb5 password prompt and hang.
+static TEST_ENV_LOCK: Mutex<()> = Mutex::new(());
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Impl {
@@ -219,17 +232,30 @@ impl TestKdc {
     }
 
     pub fn kinit(&self, principal: &str, password: &str) {
-        let mut child = Command::new("kinit")
-            .args(["-c"])
+        let mut cmd = Command::new("kinit");
+        cmd.arg("-c")
             .arg(&self.ccache_path)
             .arg(principal)
             .env("KRB5_CONFIG", &self.config_path)
             .stdin(Stdio::piped())
             .stdout(Stdio::null())
-            .stderr(Stdio::piped())
-            .spawn()
-            .expect("spawn kinit");
-        // Heimdal's kinit always prints a prompt to stderr before reading
+            .stderr(Stdio::piped());
+        // kinit reads the password from the controlling terminal (/dev/tty),
+        // not stdin, whenever one is present — so the piped password below is
+        // ignored under an interactive `cargo test` and kinit blocks on a
+        // secure-input prompt. setsid(2) puts the child in a new session with
+        // no controlling terminal, so it has no tty to prompt on and reads
+        // the password from stdin instead (the same path that works in CI).
+        unsafe {
+            cmd.pre_exec(|| {
+                if libc::setsid() == -1 {
+                    return Err(std::io::Error::last_os_error());
+                }
+                Ok(())
+            });
+        }
+        let mut child = cmd.spawn().expect("spawn kinit");
+        // Heimdal's kinit still prints a prompt to stderr before reading
         // stdin; that's harmless. Both impls accept the password on stdin
         // followed by a newline.
         let stdin = child.stdin.as_mut().unwrap();
@@ -244,10 +270,18 @@ impl TestKdc {
     }
 
     /// Set the process-wide env vars so libgssapi sees this KDC's config,
-    /// keytab, and ccache. Tests must run single-threaded.
-    pub fn apply_env(&self) {
-        // SAFETY: tests using this fixture run with --test-threads=1 so no
-        // other thread is reading these env vars concurrently.
+    /// keytab, and ccache, and return a guard serializing this against other
+    /// tests. Hold the guard for the rest of the test: the env stays valid
+    /// only until another test takes the lock and points it at its own KDC.
+    #[must_use = "hold the returned guard for the duration of the test; \
+                  dropping it immediately releases the env lock and lets \
+                  another test clobber KRB5CCNAME/KRB5_CONFIG"]
+    pub fn apply_env(&self) -> MutexGuard<'static, ()> {
+        // A panic in a prior test poisons the lock, but the guarded data is
+        // just () — nothing to corrupt — so recover and carry on.
+        let guard = TEST_ENV_LOCK.lock().unwrap_or_else(PoisonError::into_inner);
+        // SAFETY: we hold TEST_ENV_LOCK, so no other test thread is reading
+        // or writing these env vars concurrently.
         unsafe {
             std::env::set_var("KRB5_CONFIG", &self.config_path);
             std::env::set_var(
@@ -260,6 +294,7 @@ impl TestKdc {
             );
             std::env::set_var("KRB5RCACHENAME", "none:");
         }
+        guard
     }
 }
 

@@ -18,6 +18,7 @@ use std::{
     ops::Deref,
     ptr, slice,
     os::raw::c_int,
+    sync::LazyLock,
 };
 
 pub static GSS_NT_USER_NAME: Oid<'static> =
@@ -74,11 +75,11 @@ pub static GSS_KRB5_GET_CRED_IMPERSONATOR: Oid<'static> =
 pub(crate) const NO_OID: gss_OID = ptr::null_mut();
 pub(crate) const NO_OID_SET: gss_OID_set = ptr::null_mut();
 
-lazy_static! {
-    // Keyed by BER bytes (`&'static [u8]`) rather than `Oid<'static>` so
-    // that lookup from any `&Oid<'_>` lifetime works via the
-    // `Deref<Target = [u8]>` coercion.
-    static ref OIDS: HashMap<&'static [u8], &'static str> = HashMap::from_iter([
+// Keyed by BER bytes (`&'static [u8]`) rather than `Oid<'static>` so
+// that lookup from any `&Oid<'_>` lifetime works via the
+// `Deref<Target = [u8]>` coercion.
+static OIDS: LazyLock<HashMap<&'static [u8], &'static str>> = LazyLock::new(|| {
+    HashMap::from_iter([
         (&*GSS_NT_USER_NAME, "GSS_NT_USER_NAME"),
         (&*GSS_NT_MACHINE_UID_NAME, "GSS_NT_MACHINE_UID_NAME"),
         (&*GSS_NT_STRING_UID_NAME, "GSS_NT_STRING_UID_NAME"),
@@ -97,8 +98,8 @@ lazy_static! {
         (&*GSS_NT_KRB5_ENTERPRISE_NAME, "GSS_KRB5_NT_ENTERPRISE_NAME"),
         (&*GSS_KRB5_CRED_NO_CI_FLAGS_X, "GSS_KRB5_CRED_NO_CI_FLAGS_X"),
         (&*GSS_KRB5_GET_CRED_IMPERSONATOR, "GSS_KRB5_GET_CRED_IMPERSONATOR"),
-    ]);
-}
+    ])
+});
 
 /* I've copied lots of OIDs from lots of standards into this module in
  * order to make your life easier, and also in order to not have to

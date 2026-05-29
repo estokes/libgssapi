@@ -1,18 +1,18 @@
+#[cfg(feature = "localname")]
+use crate::oid::NO_OID;
 use crate::{
     error::{Error, MajorFlags},
-    util::{Buf, BufRef},
     oid::Oid,
-};
-use libgssapi_sys::{
-    gss_OID, gss_OID_desc, gss_canonicalize_name, gss_display_name, gss_duplicate_name,
-    gss_import_name, gss_name_t, gss_release_name, gss_export_name,
-    OM_uint32, GSS_S_COMPLETE,
+    util::{Buf, BufRef},
 };
 #[cfg(feature = "localname")]
 use libgssapi_sys::gss_localname;
-#[cfg(feature = "localname")]
-use crate::oid::NO_OID;
-use std::{ptr, fmt};
+use libgssapi_sys::{
+    GSS_S_COMPLETE, OM_uint32, gss_OID, gss_OID_desc, gss_canonicalize_name,
+    gss_display_name, gss_duplicate_name, gss_export_name, gss_import_name, gss_name_t,
+    gss_release_name,
+};
+use std::{fmt, ptr};
 
 pub struct Name(gss_name_t);
 
@@ -62,7 +62,7 @@ impl Name {
     pub(crate) unsafe fn from_c(ptr: gss_name_t) -> Self {
         Name(ptr)
     }
-    
+
     /// parse the specified bytes as a gssapi name, with optional
     /// `kind` e.g. `GSS_NT_HOSTBASED_SERVICE` or
     /// `GSS_NT_KRB5_PRINCIPAL`.
@@ -74,10 +74,6 @@ impl Name {
             gss_import_name(
                 &mut minor as *mut OM_uint32,
                 buf.to_c(),
-                // match by reference: `Oid::to_c` returns a pointer *into*
-                // the Oid, so the Oid must outlive the FFI call. Matching
-                // `kind` by value would bind a copy local to the match arm
-                // that is dropped before `gss_import_name` reads it.
                 match &kind {
                     None => ptr::null_mut::<gss_OID_desc>(),
                     Some(kind) => kind.to_c(),
@@ -90,7 +86,7 @@ impl Name {
         } else {
             Err(Error {
                 major: MajorFlags::from_bits_retain(major),
-                minor
+                minor,
             })
         }
     }
@@ -107,7 +103,7 @@ impl Name {
                 self.to_c(),
                 match &mech {
                     None => ptr::null_mut::<gss_OID_desc>(),
-                    Some(id) => id.to_c()
+                    Some(id) => id.to_c(),
                 },
                 &mut out as *mut gss_name_t,
             )
@@ -117,7 +113,7 @@ impl Name {
         } else {
             Err(Error {
                 major: MajorFlags::from_bits_retain(major),
-                minor
+                minor,
             })
         }
     }
@@ -128,19 +124,14 @@ impl Name {
     pub fn export(&self) -> Result<Buf, Error> {
         let mut out = Buf::empty();
         let mut minor = GSS_S_COMPLETE;
-        let major = unsafe {
-            gss_export_name(
-                &mut minor as *mut OM_uint32,
-                self.0,
-                out.to_c()
-            )
-        };
+        let major =
+            unsafe { gss_export_name(&mut minor as *mut OM_uint32, self.0, out.to_c()) };
         if major == GSS_S_COMPLETE {
             Ok(out)
         } else {
             Err(Error {
                 major: MajorFlags::from_bits_retain(major),
-                minor
+                minor,
             })
         }
     }
@@ -165,7 +156,7 @@ impl Name {
         } else {
             Err(Error {
                 major: MajorFlags::from_bits_retain(major),
-                minor
+                minor,
             })
         }
     }
@@ -182,7 +173,7 @@ impl Name {
                 &mut minor as *mut OM_uint32,
                 self.0,
                 mechs.as_ref().map_or(NO_OID, |o| o.to_c()),
-                out.to_c()
+                out.to_c(),
             )
         };
         if major == GSS_S_COMPLETE {
@@ -190,7 +181,7 @@ impl Name {
         } else {
             Err(Error {
                 major: MajorFlags::from_bits_retain(major),
-                minor
+                minor,
             })
         }
     }
@@ -211,7 +202,7 @@ impl Name {
         } else {
             Err(Error {
                 major: MajorFlags::from_bits_retain(major),
-                minor
+                minor,
             })
         }
     }

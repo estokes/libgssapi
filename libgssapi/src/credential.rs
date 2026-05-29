@@ -1,7 +1,7 @@
 use crate::{
-    error::{gss_error, Error, MajorFlags},
+    error::{Error, MajorFlags, gss_error},
     name::Name,
-    oid::{OidSet, NO_OID_SET},
+    oid::{NO_OID_SET, OidSet},
     util::BufRef,
 };
 #[cfg(feature = "s4u")]
@@ -10,10 +10,9 @@ use crate::{
     util::BufSet,
 };
 use libgssapi_sys::{
-    gss_OID_set, gss_acquire_cred, gss_acquire_cred_with_password,
-    gss_cred_id_t, gss_cred_usage_t, gss_inquire_cred, gss_name_t,
-    gss_release_cred, OM_uint32, _GSS_C_INDEFINITE, GSS_C_ACCEPT, GSS_C_BOTH,
-    GSS_C_INITIATE, GSS_S_COMPLETE,
+    _GSS_C_INDEFINITE, GSS_C_ACCEPT, GSS_C_BOTH, GSS_C_INITIATE, GSS_S_COMPLETE,
+    OM_uint32, gss_OID_set, gss_acquire_cred, gss_acquire_cred_with_password,
+    gss_cred_id_t, gss_cred_usage_t, gss_inquire_cred, gss_name_t, gss_release_cred,
 };
 #[cfg(feature = "s4u")]
 use libgssapi_sys::{
@@ -25,7 +24,7 @@ use std::ffi::CString;
 use std::{fmt, ptr, sync::Arc, time::Duration};
 
 #[cfg(feature = "store")]
-use crate::oid::{Oid, NO_OID};
+use crate::oid::{NO_OID, Oid};
 #[cfg(feature = "store")]
 use libgssapi_sys::gss_store_cred;
 
@@ -275,7 +274,6 @@ impl Cred {
                 &mut minor as *mut OM_uint32,
                 self.to_c(),
                 usage as gss_cred_usage_t,
-                // match by reference: see note in `store`.
                 match &desired_mech {
                     None => NO_OID,
                     Some(desired_mechs) => desired_mechs.to_c(),
@@ -314,9 +312,6 @@ impl Cred {
                 &mut minor as *mut OM_uint32,
                 self.to_c(),
                 usage.to_c() as gss_cred_usage_t,
-                // match by reference: `Oid::to_c` returns a pointer *into*
-                // the Oid, which must outlive this call. Matching by value
-                // would point at an arm-local copy dropped before the call.
                 match &desired_mech {
                     None => NO_OID,
                     Some(desired_mechs) => desired_mechs.to_c(),
@@ -356,7 +351,7 @@ impl Cred {
     }
 
     pub(crate) unsafe fn to_c(&self) -> gss_cred_id_t {
-        self.0 .0
+        self.0.0
     }
 
     unsafe fn info_c(&self, mut ifo: CredInfoC) -> Result<CredInfoC, Error> {
@@ -364,7 +359,7 @@ impl Cred {
         let major = unsafe {
             gss_inquire_cred(
                 &mut minor as *mut OM_uint32,
-                self.0 .0,
+                self.0.0,
                 match ifo.name {
                     None => ptr::null_mut::<gss_name_t>(),
                     Some(ref mut n) => n as *mut gss_name_t,
@@ -438,7 +433,7 @@ impl Cred {
             let mut minor: u32 = 0;
             let major = gss_inquire_cred_by_oid(
                 &mut minor as *mut OM_uint32,
-                self.0 .0,
+                self.0.0,
                 GSS_KRB5_GET_CRED_IMPERSONATOR.to_c(),
                 out.to_c(),
             );

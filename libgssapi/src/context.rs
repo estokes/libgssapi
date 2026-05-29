@@ -2,20 +2,19 @@
 use crate::util::{GssIov, GssIovFake};
 use crate::{
     credential::{Cred, NO_CRED},
-    error::{gss_error, Error, MajorFlags},
+    error::{Error, MajorFlags, gss_error},
     name::Name,
-    oid::{Oid, NO_OID},
+    oid::{NO_OID, Oid},
     util::{Buf, BufRef},
 };
 use libgssapi_sys::{
-    gss_OID, gss_accept_sec_context, gss_buffer_desc, gss_channel_bindings_struct,
-    gss_channel_bindings_t, gss_cred_id_t, gss_ctx_id_t,
-    gss_delete_sec_context, gss_get_mic, gss_init_sec_context, gss_inquire_context,
-    gss_name_t, gss_qop_t, gss_unwrap, gss_verify_mic, gss_wrap, OM_uint32,
-    GSS_C_ANON_FLAG, GSS_C_CONF_FLAG, GSS_C_DELEG_FLAG, GSS_C_DELEG_POLICY_FLAG,
-    GSS_C_INTEG_FLAG, GSS_C_MUTUAL_FLAG, GSS_C_PROT_READY_FLAG, GSS_C_QOP_DEFAULT,
-    GSS_C_REPLAY_FLAG, GSS_C_SEQUENCE_FLAG, GSS_C_TRANS_FLAG, GSS_S_COMPLETE,
-    _GSS_C_INDEFINITE, _GSS_S_CONTINUE_NEEDED,
+    _GSS_C_INDEFINITE, _GSS_S_CONTINUE_NEEDED, GSS_C_ANON_FLAG, GSS_C_CONF_FLAG,
+    GSS_C_DELEG_FLAG, GSS_C_DELEG_POLICY_FLAG, GSS_C_INTEG_FLAG, GSS_C_MUTUAL_FLAG,
+    GSS_C_PROT_READY_FLAG, GSS_C_QOP_DEFAULT, GSS_C_REPLAY_FLAG, GSS_C_SEQUENCE_FLAG,
+    GSS_C_TRANS_FLAG, GSS_S_COMPLETE, OM_uint32, gss_OID, gss_accept_sec_context,
+    gss_buffer_desc, gss_channel_bindings_struct, gss_channel_bindings_t, gss_cred_id_t,
+    gss_ctx_id_t, gss_delete_sec_context, gss_get_mic, gss_init_sec_context,
+    gss_inquire_context, gss_name_t, gss_qop_t, gss_unwrap, gss_verify_mic, gss_wrap,
 };
 #[cfg(feature = "iov")]
 use libgssapi_sys::{
@@ -865,10 +864,6 @@ impl ClientCtx {
                 },
                 &mut self.ctx as *mut gss_ctx_id_t,
                 self.target.to_c(),
-                // match by reference: `Oid::to_c` returns a pointer *into*
-                // the Oid. `match self.mech` (by value) would copy it into
-                // an arm-local that is dropped before gss_init_sec_context
-                // dereferences the pointer.
                 match &self.mech {
                     None => NO_OID,
                     Some(mech) => mech.to_c(),

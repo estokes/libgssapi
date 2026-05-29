@@ -22,8 +22,8 @@
 //! will give you tokens to send to the other side, and tell you when
 //! the context is established, it's up to you to decide how the data
 //! gets there.
-//! 
-//! ```
+//!
+//! ```no_run
 //! use std::env::args;
 //! use libgssapi::{
 //!     name::Name,
@@ -85,8 +85,7 @@
 #![deny(unsafe_op_in_unsafe_fn)]
 
 #[macro_use] extern crate bitflags;
-#[macro_use] extern crate lazy_static;
- 
+
 pub mod oid;
 pub mod error;
 pub mod util;

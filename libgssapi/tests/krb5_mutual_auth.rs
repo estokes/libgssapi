@@ -1,6 +1,7 @@
 //! Integration test: mutual auth handshake + wrap/unwrap roundtrip against
-//! a real (in-process) MIT krb5 KDC. Must run with `--test-threads=1`
-//! because the fixture sets process-wide env vars.
+//! a real (in-process) MIT krb5 KDC. `apply_env()` returns a guard that
+//! serializes the process-wide env it sets, so this runs safely under a
+//! plain `cargo test`.
 
 mod common;
 
@@ -9,7 +10,7 @@ use common::TestKdc;
 use libgssapi::context::{ClientCtx, CtxFlags, SecurityContext, ServerCtx};
 use libgssapi::credential::{Cred, CredUsage};
 use libgssapi::name::Name;
-use libgssapi::oid::{GSS_MECH_KRB5, GSS_NT_HOSTBASED_SERVICE, OidSet};
+use libgssapi::oid::{GSS_MECH_KRB5, GSS_NT_HOSTBASED_SERVICE, GSS_NT_USER_NAME, OidSet};
 use libgssapi::util::Buf;
 
 #[test]
@@ -19,7 +20,7 @@ fn mutual_auth_handshake_and_wrap() {
     kdc.add_principal_random_key("nfs/test.example.com");
     kdc.export_keytab("nfs/test.example.com");
     kdc.kinit("testuser", "testpass");
-    kdc.apply_env();
+    let _env = kdc.apply_env();
 
     let desired_mechs = OidSet::singleton(GSS_MECH_KRB5).unwrap();
 
@@ -35,8 +36,17 @@ fn mutual_auth_handshake_and_wrap() {
     .unwrap_or_else(|e| panic!("acquire server cred: {e}"));
     let mut server_ctx = ServerCtx::new(Some(server_cred));
 
-    let client_cred = Cred::acquire(None, None, CredUsage::Initiate, Some(&desired_mechs))
-        .expect("acquire client cred");
+    // Acquire by explicit name, not None: a None initiator name makes Apple's
+    // GSS.framework enumerate identities (incl. PKINIT), probing the keychain
+    // for certificates and hanging on a secure-input prompt in an interactive
+    // session. Naming testuser sends Heimdal straight to its ccache.
+    let client_name = Name::new(b"testuser", Some(GSS_NT_USER_NAME))
+        .unwrap()
+        .canonicalize(Some(GSS_MECH_KRB5))
+        .unwrap();
+    let client_cred =
+        Cred::acquire(Some(&client_name), None, CredUsage::Initiate, Some(&desired_mechs))
+            .expect("acquire client cred");
     let mut client_ctx = ClientCtx::new(
         Some(client_cred),
         cname,
