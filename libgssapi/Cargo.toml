@@ -1,6 +1,6 @@
 [package]
 name = "libgssapi"
-version = "0.9.1"
+version = "0.10.0"
 authors = ["Eric Stokes <letaris@gmail.com>"]
 edition = "2024"
 license = "MIT"
@@ -16,6 +16,9 @@ categories = ["api-bindings", "authentication", "cryptography", "os::unix-apis"]
 default = ["iov", "localname", "store"]
 all = ["iov", "localname", "s4u", "store"]
 iov = []
+# s4u (Kerberos constrained delegation) is MIT-only; Heimdal does not provide
+# gss_acquire_cred_impersonate_name / gss_store_cred_into, so enabling this
+# feature (or `all`) against Heimdal will not compile.
 s4u = []
 localname = []
 store = []

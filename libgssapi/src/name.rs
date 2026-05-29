@@ -5,7 +5,7 @@ use crate::{
 };
 use libgssapi_sys::{
     gss_OID, gss_OID_desc, gss_canonicalize_name, gss_display_name, gss_duplicate_name,
-    gss_import_name, gss_name_struct, gss_name_t, gss_release_name, gss_export_name,
+    gss_import_name, gss_name_t, gss_release_name, gss_export_name,
     OM_uint32, GSS_S_COMPLETE,
 };
 #[cfg(feature = "localname")]
@@ -69,7 +69,7 @@ impl Name {
     pub fn new(s: &[u8], kind: Option<Oid<'_>>) -> Result<Self, Error> {
         let mut buf = BufRef::from(s);
         let mut minor = GSS_S_COMPLETE;
-        let mut name = ptr::null_mut::<gss_name_struct>();
+        let mut name: gss_name_t = ptr::null_mut();
         let major = unsafe {
             gss_import_name(
                 &mut minor as *mut OM_uint32,
@@ -99,7 +99,7 @@ impl Name {
     /// default mechanism if not specified). This makes a copy of the
     /// name.
     pub fn canonicalize(&self, mech: Option<Oid<'_>>) -> Result<Self, Error> {
-        let mut out = ptr::null_mut::<gss_name_struct>();
+        let mut out: gss_name_t = ptr::null_mut();
         let mut minor = GSS_S_COMPLETE;
         let major = unsafe {
             gss_canonicalize_name(
@@ -197,7 +197,7 @@ impl Name {
 
     /// Duplicate the name.
     pub fn duplicate(&self) -> Result<Self, Error> {
-        let mut copy = ptr::null_mut::<gss_name_struct>();
+        let mut copy: gss_name_t = ptr::null_mut();
         let mut minor = GSS_S_COMPLETE;
         let major = unsafe {
             gss_duplicate_name(

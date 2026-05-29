@@ -10,8 +10,8 @@ use crate::{
     util::BufSet,
 };
 use libgssapi_sys::{
-    gss_OID_set, gss_acquire_cred, gss_acquire_cred_with_password, gss_cred_id_struct,
-    gss_cred_id_t, gss_cred_usage_t, gss_inquire_cred, gss_name_struct, gss_name_t,
+    gss_OID_set, gss_acquire_cred, gss_acquire_cred_with_password,
+    gss_cred_id_t, gss_cred_usage_t, gss_inquire_cred, gss_name_t,
     gss_release_cred, OM_uint32, _GSS_C_INDEFINITE, GSS_C_ACCEPT, GSS_C_BOTH,
     GSS_C_INITIATE, GSS_S_COMPLETE,
 };
@@ -135,12 +135,12 @@ impl Cred {
             .unwrap_or(_GSS_C_INDEFINITE);
         let mut minor = GSS_S_COMPLETE;
         let usage = usage.to_c();
-        let mut cred = ptr::null_mut::<gss_cred_id_struct>();
+        let mut cred: gss_cred_id_t = ptr::null_mut();
         let major = unsafe {
             gss_acquire_cred(
                 &mut minor as *mut OM_uint32,
                 match name {
-                    None => ptr::null_mut::<gss_name_struct>(),
+                    None => ptr::null_mut(),
                     Some(n) => n.to_c(),
                 },
                 time_req,
@@ -176,12 +176,12 @@ impl Cred {
             .unwrap_or(_GSS_C_INDEFINITE);
         let mut minor = GSS_S_COMPLETE;
         let usage = usage.to_c();
-        let mut cred = ptr::null_mut::<gss_cred_id_struct>();
+        let mut cred: gss_cred_id_t = ptr::null_mut();
         let major = unsafe {
             gss_acquire_cred_with_password(
                 &mut minor as *mut OM_uint32,
                 match name {
-                    None => ptr::null_mut::<gss_name_struct>(),
+                    None => ptr::null_mut(),
                     Some(n) => n.to_c(),
                 },
                 BufRef::from(password.as_bytes()).to_c(),
@@ -219,7 +219,7 @@ impl Cred {
             .unwrap_or(_GSS_C_INDEFINITE);
         let mut minor = GSS_S_COMPLETE;
         let usage = usage.to_c();
-        let mut cred = ptr::null_mut::<gss_cred_id_struct>();
+        let mut cred: gss_cred_id_t = ptr::null_mut();
         let major = unsafe {
             gss_acquire_cred_impersonate_name(
                 &mut minor as *mut OM_uint32,

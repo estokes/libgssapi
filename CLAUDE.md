@@ -64,9 +64,44 @@ time:
 | `target_os = "macos"` | Apple GSS.framework | `src/wrapper_apple.h` | `-framework GSS` |
 
 Windows panics — use SSPI. When cross-compiling (`HOST != TARGET`),
-`pkg-config` is skipped and the filesystem-search path runs. Nix's
+`pkg-config` is skipped and the library-search path runs. Nix's
 `NIX_CFLAGS_COMPILE` is forwarded to bindgen so it can find headers in
 the Nix store.
+
+Two env-var overrides (both `rerun-if-env-changed`):
+
+- `LIBGSSAPI_IMPL` = `mit` | `heimdal` | `apple` forces the
+  implementation, bypassing all autodetection. The escape hatch for
+  machines with both stacks installed.
+- `LIBGSSAPI_PREFIX` = colon-separated install prefixes. Each adds
+  `<prefix>/include` to bindgen (`-I`) and `<prefix>/lib` to the linker
+  (`-L`), and is searched for the library during autodetection. For
+  source/custom installs that pkg-config can't see.
+
+The library search (`which`) only runs when pkg-config is unavailable.
+It checks the `LIBGSSAPI_PREFIX` lib dirs, the `krb5-config --prefix`
+lib dir, `LD_LIBRARY_PATH`, and the standard system lib dirs
+**non-recursively** (it used to shell out to a recursive `find`; that
+was dropped). Non-recursive means it won't see multiarch subdirs like
+`/usr/lib/x86_64-linux-gnu` — but those distros ship pkg-config files,
+so the search never runs there anyway. If autodetection finds nothing it
+panics pointing at `LIBGSSAPI_IMPL` / `LIBGSSAPI_PREFIX`.
+
+`try_pkgconfig` probes `mit-krb5-gssapi` before `heimdal-gssapi` and
+takes the first hit, so on a machine with **both** dev stacks installed
+the build picks MIT (use `LIBGSSAPI_IMPL` to override). This bit the
+Heimdal test container: `rust:bookworm` ships `krb5-multidev` (MIT's
+`.pc`/headers) via buildpack-deps, so the container silently built MIT
+until `Dockerfile.heimdal` started purging that package. If a "Heimdal"
+build links `-lgssapi_krb5`, this is why.
+
+Important consequence for Heimdal: the struct *tag* names bindgen emits
+differ between impls (`gss_name_struct` on MIT vs
+`gss_name_t_desc_struct` on Heimdal). The safe wrapper must never name
+those tags — only the portable handle typedefs (`gss_name_t`,
+`gss_cred_id_t`, …). To make a null handle, write
+`let mut x: gss_name_t = ptr::null_mut();`, not
+`ptr::null_mut::<gss_name_struct>()`.
 
 Both wrappers include `consts.h`, which re-exports a bunch of
 `GSS_C_*`/`GSS_S_*` macros as proper `OM_uint32` constants with
@@ -85,6 +120,10 @@ All declared in `libgssapi/Cargo.toml`. Defaults are `iov`, `localname`,
 - `s4u` — Kerberos S4U (constrained delegation):
   `Cred::impersonate`, `Cred::store_into`, `Cred::proxy` lookup via
   `GSS_KRB5_GET_CRED_IMPERSONATOR`, and the internal `BufSet` type.
+  **MIT only** — Heimdal provides neither
+  `gss_acquire_cred_impersonate_name` nor `gss_store_cred_into`, so
+  enabling `s4u`/`all` against Heimdal will not compile. The Heimdal
+  test run (`tests/test.sh heimdal`) therefore omits `--all-features`.
 - `localname` — `Name::local_name` (POSIX local-name mapping).
 - `store` — `Cred::store` (writes to default ccache via the older
   `gss_store_cred`; works on macOS unlike `store_into`).

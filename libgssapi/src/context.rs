@@ -9,7 +9,7 @@ use crate::{
 };
 use libgssapi_sys::{
     gss_OID, gss_accept_sec_context, gss_buffer_desc, gss_channel_bindings_struct,
-    gss_channel_bindings_t, gss_cred_id_struct, gss_cred_id_t, gss_ctx_id_t,
+    gss_channel_bindings_t, gss_cred_id_t, gss_ctx_id_t,
     gss_delete_sec_context, gss_get_mic, gss_init_sec_context, gss_inquire_context,
     gss_name_t, gss_qop_t, gss_unwrap, gss_verify_mic, gss_wrap, OM_uint32,
     GSS_C_ANON_FLAG, GSS_C_CONF_FLAG, GSS_C_DELEG_FLAG, GSS_C_DELEG_POLICY_FLAG,
@@ -618,7 +618,7 @@ impl ServerCtx {
         let mut minor = GSS_S_COMPLETE;
         let mut tok = BufRef::from(tok);
         let mut out_tok = Buf::empty();
-        let mut delegated_cred = ptr::null_mut::<gss_cred_id_struct>();
+        let mut delegated_cred: gss_cred_id_t = ptr::null_mut();
         let mut flag_bits: u32 = 0;
         let major = unsafe {
             gss_accept_sec_context(

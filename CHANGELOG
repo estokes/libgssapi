@@ -1,3 +1,50 @@
+0.10.0
+- SOUNDNESS: Oid is now Oid<'a>, tracking the lifetime of its BER bytes.
+  OIDs borrowed from an OidSet can no longer be copied out and used after
+  the set is freed. Pre-defined constants and gssapi-returned mechanism
+  OIDs are Oid<'static>. Add `assume_static` and `from_raw_desc` (both
+  unsafe) for the rare cases that need them.
+- SOUNDNESS: removed the safe `From<gss_cred_id_t> for Cred` and
+  `From<gss_OID_desc> for Oid` conversions. Use `Cred::from_c` /
+  `Oid::from_raw_desc` (both unsafe) instead — wrapping a raw handle is
+  not a safe operation.
+- SOUNDNESS: dropped `Sync` from ClientCtx/ServerCtx. GSSAPI forbids
+  concurrent use of a single security context; share via Mutex if needed.
+  `Send` is retained.
+- SOUNDNESS: removed `DerefMut` for GssIov (stream unwrap_iov can alias
+  buffers); use the new `unsafe fn as_mut_slice` when you need mutation.
+- SOUNDNESS: fixed a dangling pointer where an Oid passed by value to a
+  mechanism argument could be dropped before the FFI call read it.
+- BUGFIX: Cred::store wrote its outputs into stack temporaries, so it
+  always returned an empty OidSet and CredUsage::Both. It now returns
+  what gssapi actually stored.
+- BUGFIX: GSS_NT_ANONYMOUS had a wrong BER encoding (an invalid `\01`
+  escape produced 7 bytes instead of 6). It is now 2b 06 01 05 06 03.
+- BUGFIX: ServerCtx/ClientCtx flag handling no longer discards all flags
+  when gssapi returns an unrecognized flag bit.
+- BUGFIX: the wrapper no longer fails to build against Heimdal. It named
+  MIT-specific struct tags (gss_name_struct, gss_cred_id_struct) to spell
+  null handles; it now uses the portable handle typedefs, which both MIT
+  and Heimdal provide. The s4u feature remains MIT-only (Heimdal has no
+  gss_acquire_cred_impersonate_name / gss_store_cred_into).
+- API: OidSet no longer implements Index; use `OidSet::get(i) -> Option`.
+  `OidSet::new` is now infallible (returns OidSet, not Result), wrapping
+  GSS_C_NO_OID_SET until the first `add`.
+- API: SecurityContext inquiry methods (info, source_name, lifetime,
+  mechanism, flags, local, open, etc.) now take &self instead of &mut self.
+- API: methods that took `&Oid` now take `Oid` by value (it is Copy).
+- BUILD: new LIBGSSAPI_IMPL env var (mit|heimdal|apple) forces the
+  implementation, overriding autodetection. Useful when both MIT and
+  Heimdal are installed and the probe order would otherwise pick MIT.
+- BUILD: new LIBGSSAPI_PREFIX env var (colon-separated install prefixes)
+  adds <prefix>/include to bindgen and <prefix>/lib to the linker, and is
+  searched during autodetection. Replaces the old recursive `find` over
+  the system lib dirs, which has been removed in favor of a cheap
+  non-recursive check.
+- Switched to edition 2024 with #![deny(unsafe_op_in_unsafe_fn)].
+- Added a local integration test suite (tests/test.sh) that runs against
+  both MIT and Heimdal, plus pure-Rust tests under Miri.
+
 0.9.1
 - fix build on mac os, sorry!
 

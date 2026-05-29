@@ -21,16 +21,30 @@ run_mit() {
 run_heimdal() {
     echo "=== Heimdal (container) ==="
     podman build -q -t libgssapi-heimdal -f tests/docker/Dockerfile.heimdal tests/docker/ >/dev/null
+    # Not --all-features: the s4u feature needs gss_acquire_cred_impersonate_name
+    # / gss_store_cred_into, which Heimdal does not provide. Test the default
+    # feature set (iov, localname, store), which is everything Heimdal supports.
     podman run --rm \
         -v "$PWD:/work" \
         -w /work \
         libgssapi-heimdal \
-        cargo test --all-features --lib --tests -- --test-threads=1
+        cargo test --lib --tests -- --test-threads=1
+}
+
+shell_heimdal() {
+    echo "=== Heimdal (container) ==="
+    podman build -q -t libgssapi-heimdal -f tests/docker/Dockerfile.heimdal tests/docker/ >/dev/null
+    podman run --rm -it \
+        -v "$PWD:/work" \
+        -w /work \
+        libgssapi-heimdal \
+        bash
 }
 
 case "${1:-mit}" in
     mit)     run_mit ;;
     heimdal) run_heimdal ;;
+    heimdalshell) shell_heimdal ;;
     all)     run_mit; echo; run_heimdal ;;
     *)
         echo "Usage: $0 {mit|heimdal|all}" >&2

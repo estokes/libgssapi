@@ -8,6 +8,31 @@ gssapi is a huge and complex beast that is also very old (like [Computer Chronic
 
 For a simpler cross platform interface to Kerberos 5 see [cross-krb5](https://crates.io/crates/cross-krb5).
 
+### Features
+
+Default: `iov`, `localname`, `store`. `all` additionally enables `s4u`.
+
+- `iov` — `wrap_iov`/`unwrap_iov` and the `GssIov` types.
+- `localname` — `Name::local_name` (POSIX local-name mapping).
+- `store` — `Cred::store` (store into the default ccache).
+- `s4u` — Kerberos S4U constrained delegation (`Cred::impersonate`,
+  `Cred::store_into`, impersonator lookup). **MIT only.** Heimdal does not
+  implement `gss_acquire_cred_impersonate_name` / `gss_store_cred_into`, so
+  enabling `s4u` (or `all`) against Heimdal will not compile. Use the
+  default features on Heimdal.
+
+### Build configuration
+
+The build finds gssapi via `pkg-config` (preferring MIT over Heimdal),
+falling back to searching standard library directories. Two env vars
+override this:
+
+- `LIBGSSAPI_IMPL` = `mit` | `heimdal` | `apple` — force the
+  implementation. Handy when both MIT and Heimdal are installed.
+- `LIBGSSAPI_PREFIX` = colon-separated install prefixes — for installs
+  pkg-config can't find. Each prefix adds `<prefix>/include` to the
+  header search and `<prefix>/lib` to the library search.
+
 ### Example KRB5 Mutual Authentication Between Client and Server
 ```rust
 use libgssapi::{

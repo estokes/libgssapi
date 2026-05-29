@@ -3,6 +3,11 @@
 # Builds libgssapi against Heimdal so the wrapper can be verified without
 # installing Heimdal on the host. Source is mounted at /work; build
 # artifacts go to /work/target-heimdal via CARGO_TARGET_DIR.
+#
+# The rust:bookworm base ships krb5-multidev (MIT dev files) via
+# buildpack-deps, with nothing depending on it. Its mit-krb5-gssapi.pc
+# makes build.rs pick MIT over Heimdal, so this container would silently
+# test MIT. We purge it below so the container is genuinely Heimdal-only.
 
 FROM rust:bookworm
 
@@ -14,6 +19,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         libclang-dev \
         pkg-config \
         ca-certificates \
+    && apt-get purge -y krb5-multidev \
     && rm -rf /var/lib/apt/lists/*
 
 ENV CARGO_TARGET_DIR=/work/target-heimdal
