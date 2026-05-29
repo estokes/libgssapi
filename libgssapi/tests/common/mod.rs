@@ -32,7 +32,7 @@ impl Impl {
     fn detect() -> Self {
         if has_binary("krb5kdc") {
             Impl::Mit
-        } else if Path::new(HEIMDAL_KDC).exists() || has_binary("kdc") {
+        } else if heimdal_kdc().is_some() || has_binary("kdc") {
             Impl::Heimdal
         } else {
             panic!("no KDC binary found (need MIT krb5kdc or Heimdal kdc)")
@@ -40,7 +40,20 @@ impl Impl {
     }
 }
 
-const HEIMDAL_KDC: &str = "/usr/lib/heimdal-servers/kdc";
+// The Heimdal KDC daemon isn't on PATH; it lives in an impl-specific spot.
+// Debian/Ubuntu put it under /usr/lib/heimdal-servers; macOS ships Heimdal
+// inside a private framework.
+const HEIMDAL_KDC_PATHS: &[&str] = &[
+    "/usr/lib/heimdal-servers/kdc",
+    "/System/Library/PrivateFrameworks/Heimdal.framework/Helpers/kdc",
+];
+
+fn heimdal_kdc() -> Option<&'static str> {
+    HEIMDAL_KDC_PATHS
+        .iter()
+        .copied()
+        .find(|p| Path::new(p).exists())
+}
 
 fn has_binary(name: &str) -> bool {
     Command::new("which")
@@ -111,15 +124,24 @@ impl TestKdc {
                 .stderr(Stdio::null())
                 .spawn()
                 .expect("spawn krb5kdc"),
-            Impl::Heimdal => Command::new(HEIMDAL_KDC)
-                .arg("-c")
-                .arg(&config_path)
-                .arg("--addresses=127.0.0.1")
-                .arg(format!("--ports={port}/tcp {port}/udp"))
-                .stdout(Stdio::null())
-                .stderr(Stdio::null())
-                .spawn()
-                .expect("spawn heimdal kdc"),
+            Impl::Heimdal => {
+                let mut cmd = Command::new(heimdal_kdc().unwrap_or("kdc"));
+                cmd.arg("-c")
+                    .arg(&config_path)
+                    .arg("--addresses=127.0.0.1")
+                    .arg(format!("--ports={port}/tcp {port}/udp"));
+                if cfg!(target_os = "macos") {
+                    // macOS ships the KDC as a launchd helper that gets its
+                    // listening sockets and sandbox from launchd. Run standalone
+                    // it binds nothing and exits unless told to listen on the
+                    // network itself and to skip the sandbox.
+                    cmd.arg("--listen-on-network").arg("--no-sandbox");
+                }
+                cmd.stdout(Stdio::null())
+                    .stderr(Stdio::null())
+                    .spawn()
+                    .expect("spawn heimdal kdc")
+            }
         };
 
         wait_for_port(port);

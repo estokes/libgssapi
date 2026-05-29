@@ -14,9 +14,9 @@ Two-crate cargo workspace:
 ## Common commands
 
 ```sh
-cargo build                                    # default features
-cargo build --all-features                     # iov + s4u + localname + store
-cargo build --no-default-features              # bare minimum
+cargo build                                    # no features (default is empty)
+cargo build --all-features                     # iov + s4u + localname + store (MIT only)
+cargo build --features iov,localname,store     # everything except s4u (MIT/Heimdal)
 cargo run --example krb5 -- nfs@host.example.com
 ```
 
@@ -24,18 +24,26 @@ For tests, use the driver script — it sets up an in-process KDC and
 runs the full suite. MIT runs natively against the host's krb5
 install; Heimdal runs inside a podman container with target-heimdal/
 as a separate build directory so it doesn't clobber the host build.
+Apple GSS.framework runs natively on macOS against the system Heimdal
+KDC.
 
 ```sh
-tests/test.sh                # MIT (host) only
+tests/test.sh                # host default: Apple on macOS, else MIT
+tests/test.sh mit            # MIT (host)
+tests/test.sh apple          # Apple GSS.framework (host, macOS only)
 tests/test.sh heimdal        # Heimdal in container
-tests/test.sh all            # both
+tests/test.sh all            # both Linux impls (MIT + Heimdal)
 ```
 
 The Heimdal container image (`tests/docker/Dockerfile.heimdal`) is
-built on first run and cached. Tests pass identically against both
+built on first run and cached. Tests pass identically across all three
 impls — the `TestKdc` fixture in `tests/common/mod.rs` detects which
-KDC binaries are present and branches on MIT vs Heimdal command
-syntax.
+KDC binaries are present and branches on MIT vs Heimdal command syntax.
+On macOS the Heimdal KDC ships as a launchd helper inside
+`Heimdal.framework`; the fixture finds it there and adds
+`--listen-on-network --no-sandbox` so it binds a TCP/UDP port standalone.
+The Apple run uses the default feature set rather than `--all-features`
+because `s4u` is MIT-only (see below).
 
 Pure-Rust tests also run under Miri:
 
@@ -111,26 +119,47 @@ themselves.
 
 ## Feature flags
 
-All declared in `libgssapi/Cargo.toml`. Defaults are `iov`, `localname`,
-`store`. `all` adds `s4u`.
+All declared in `libgssapi/Cargo.toml`. **The default is empty.** None of
+the optional features build on every implementation, so the only honest
+cross-platform default is no features — a feature does exactly what it
+says, and enabling one the linked impl can't provide is a *compile error*,
+not a silent no-op. `all` enables everything (MIT only).
+
+Per-impl support:
 
 - `iov` — `wrap_iov`/`unwrap_iov`/`wrap_iov_length` and the `GssIov` /
-  `GssIovFake` types. Code is gated with `#[cfg(feature = "iov")]`
-  throughout `context.rs` and lives in a submodule in `util.rs`.
-- `s4u` — Kerberos S4U (constrained delegation):
-  `Cred::impersonate`, `Cred::store_into`, `Cred::proxy` lookup via
+  `GssIovFake` types. Gated `#[cfg(feature = "iov")]` throughout
+  `context.rs`, with the types in a submodule in `util.rs`. **MIT +
+  Heimdal** — Apple's GSS.framework has no `gss_wrap_iov`.
+- `s4u` — Kerberos S4U (constrained delegation): `Cred::impersonate`,
+  `Cred::store_into`, `Cred::proxy` lookup via
   `GSS_KRB5_GET_CRED_IMPERSONATOR`, and the internal `BufSet` type.
-  **MIT only** — Heimdal provides neither
-  `gss_acquire_cred_impersonate_name` nor `gss_store_cred_into`, so
-  enabling `s4u`/`all` against Heimdal will not compile. The Heimdal
-  test run (`tests/test.sh heimdal`) therefore omits `--all-features`.
-- `localname` — `Name::local_name` (POSIX local-name mapping).
+  **MIT only** — Heimdal and Apple provide neither
+  `gss_acquire_cred_impersonate_name` nor `gss_store_cred_into`.
+- `localname` — `Name::local_name` (POSIX local-name mapping). **MIT +
+  Heimdal** — Apple has no `gss_localname`.
 - `store` — `Cred::store` (writes to default ccache via the older
-  `gss_store_cred`; works on macOS unlike `store_into`).
+  `gss_store_cred`). **MIT + Heimdal** — Apple has no `gss_store_cred`.
+
+Because the default is empty, the test runs select features explicitly:
+the MIT host run uses `--all-features`; the Heimdal container run uses
+`--features iov,localname,store` (everything but s4u); the Apple run uses
+the default (nothing — its full supported surface). The `krb5_iov` example
+declares `required-features = ["iov"]` so it's skipped unless iov is on.
+
+Consumers that want a feature only where it's available should enable it
+in a target-specific dependency table rather than unconditionally, e.g.:
+
+```toml
+[target.'cfg(not(target_os = "macos"))'.dependencies]
+libgssapi = { version = "...", features = ["iov", "localname", "store"] }
+```
 
 When adding code that calls an FFI function only present on some
-implementations, gate it behind the appropriate feature and update
-both the safe wrapper and any necessary imports inside `cfg` blocks.
+implementations, gate it behind the appropriate feature and update both
+the safe wrapper and any necessary imports inside `cfg` blocks. Don't try
+to make a feature a platform-conditional no-op — let the missing function
+surface as an honest build error on impls that lack it.
 
 ## Safe-wrapper architecture
 

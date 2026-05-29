@@ -12,16 +12,34 @@ repository = "https://github.com/estokes/libgssapi"
 keywords = ["gssapi", "sspi", "kerberos", "krb5", "authentication"]
 categories = ["api-bindings", "authentication", "cryptography", "os::unix-apis"]
 
+# No features are enabled by default: none of the optional features build on
+# every supported implementation, so an honest cross-platform default is the
+# empty set. Each feature does exactly what it says — enabling one the linked
+# implementation can't provide is a compile error, not a silent no-op.
+#
+# Per-impl support:
+#   iov, localname, store — MIT and Heimdal only (Apple's GSS.framework
+#     provides no gss_wrap_iov / gss_localname / gss_store_cred).
+#   s4u                   — MIT only (Heimdal and Apple provide neither
+#     gss_acquire_cred_impersonate_name nor gss_store_cred_into).
+#
+# Consumers that want a feature only where it's available should select it in a
+# target-specific dependency table, e.g.
+#   [target.'cfg(not(target_os = "macos"))'.dependencies]
+#   libgssapi = { version = "...", features = ["iov", "localname", "store"] }
 [features]
-default = ["iov", "localname", "store"]
+default = []
 all = ["iov", "localname", "s4u", "store"]
 iov = []
-# s4u (Kerberos constrained delegation) is MIT-only; Heimdal does not provide
-# gss_acquire_cred_impersonate_name / gss_store_cred_into, so enabling this
-# feature (or `all`) against Heimdal will not compile.
 s4u = []
 localname = []
 store = []
+
+# Demonstrates wrap_iov/unwrap_iov, so it only builds with the `iov` feature
+# (and therefore not against Apple's GSS.framework).
+[[example]]
+name = "krb5_iov"
+required-features = ["iov"]
 
 [dependencies]
 bytes = "1"
