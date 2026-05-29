@@ -33,6 +33,16 @@
 - API: SecurityContext inquiry methods (info, source_name, lifetime,
   mechanism, flags, local, open, etc.) now take &self instead of &mut self.
 - API: methods that took `&Oid` now take `Oid` by value (it is Copy).
+- FEATURES: the default feature set is now empty. None of the optional
+  features build on every implementation (iov/localname/store need
+  MIT/Heimdal functions Apple's GSS.framework lacks; s4u is MIT-only), so
+  the only honest cross-platform default is no features — enabling one the
+  linked impl can't provide is now a loud compile error, not a silent
+  no-op. The `all` feature enables everything (MIT only). Consumers that
+  relied on the old default should select features in a target-specific
+  dependency table, e.g.
+  [target.'cfg(not(target_os = "macos"))'.dependencies]
+  libgssapi = { version = "...", features = ["iov", "localname", "store"] }
 - BUILD: new LIBGSSAPI_IMPL env var (mit|heimdal|apple) forces the
   implementation, overriding autodetection. Useful when both MIT and
   Heimdal are installed and the probe order would otherwise pick MIT.
@@ -43,7 +53,9 @@
   non-recursive check.
 - Switched to edition 2024 with #![deny(unsafe_op_in_unsafe_fn)].
 - Added a local integration test suite (tests/test.sh) that runs against
-  both MIT and Heimdal, plus pure-Rust tests under Miri.
+  MIT, Heimdal, and Apple's GSS.framework, plus pure-Rust tests under
+  Miri. The same in-process-KDC handshake/cred tests now run on macOS
+  (against the system Heimdal KDC) exactly as they do on Linux.
 
 0.9.1
 - fix build on mac os, sorry!
