@@ -21,8 +21,7 @@ fn mutual_auth_handshake_and_wrap() {
     kdc.kinit("testuser", "testpass");
     kdc.apply_env();
 
-    let mut desired_mechs = OidSet::new();
-    desired_mechs.add(GSS_MECH_KRB5).unwrap();
+    let desired_mechs = OidSet::singleton(GSS_MECH_KRB5).unwrap();
 
     let target = Name::new(b"nfs@test.example.com", Some(GSS_NT_HOSTBASED_SERVICE)).unwrap();
     let cname = target.canonicalize(Some(GSS_MECH_KRB5)).unwrap();

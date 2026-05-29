@@ -3,11 +3,8 @@ use libgssapi::name::Name;
 use libgssapi::oid::{OidSet, GSS_MECH_KRB5, GSS_NT_KRB5_PRINCIPAL};
 
 fn main() {
-    let desired_mechs = {
-        let mut s = OidSet::new();
-        s.add(GSS_MECH_KRB5).expect("can't add GSS_MECH_KRB5");
-        s
-    };
+    let desired_mechs =
+        OidSet::singleton(GSS_MECH_KRB5).expect("can't add GSS_MECH_KRB5");
 
     let name = Name::new("user@EXAMPLE.ORG".as_ref(), Some(GSS_NT_KRB5_PRINCIPAL))
         .expect("can't create name");

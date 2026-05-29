@@ -33,16 +33,11 @@
 - API: SecurityContext inquiry methods (info, source_name, lifetime,
   mechanism, flags, local, open, etc.) now take &self instead of &mut self.
 - API: methods that took `&Oid` now take `Oid` by value (it is Copy).
+- API: new `OidSet::singleton(oid)` constructor for the common case of a
+  set with a single member (e.g. a one-mech desired_mechs).
 - FEATURES: the default feature set is now empty. None of the optional
   features build on every implementation (iov/localname/store need
-  MIT/Heimdal functions Apple's GSS.framework lacks; s4u is MIT-only), so
-  the only honest cross-platform default is no features — enabling one the
-  linked impl can't provide is now a loud compile error, not a silent
-  no-op. The `all` feature enables everything (MIT only). Consumers that
-  relied on the old default should select features in a target-specific
-  dependency table, e.g.
-  [target.'cfg(not(target_os = "macos"))'.dependencies]
-  libgssapi = { version = "...", features = ["iov", "localname", "store"] }
+  MIT/Heimdal functions Apple's GSS.framework lacks; s4u is MIT-only)
 - BUILD: new LIBGSSAPI_IMPL env var (mit|heimdal|apple) forces the
   implementation, overriding autodetection. Useful when both MIT and
   Heimdal are installed and the probe order would otherwise pick MIT.

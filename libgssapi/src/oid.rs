@@ -350,6 +350,15 @@ impl OidSet {
         OidSet(ptr::null_mut())
     }
 
+    /// Create an OID set containing exactly `id`. Equivalent to `new()`
+    /// followed by a single `add`, which is by far the most common way a
+    /// set gets built (e.g. a one-mech `desired_mechs`).
+    pub fn singleton(id: Oid<'_>) -> Result<OidSet, Error> {
+        let mut set = OidSet::new();
+        set.add(id)?;
+        Ok(set)
+    }
+
     /// Wrap a raw `gss_OID_set` returned by gssapi. A null pointer is
     /// permitted — gssapi uses `GSS_C_NO_OID_SET` (NULL) as the canonical
     /// "no preference / empty set" sentinel, and `OidSet`'s methods treat

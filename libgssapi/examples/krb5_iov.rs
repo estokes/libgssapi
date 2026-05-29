@@ -174,11 +174,7 @@ fn unwrap_secret_msg(ctx: &mut ServerCtx, mut msg: BytesMut) -> Result<BytesMut,
 }
 
 fn run(service_name: &[u8]) -> Result<(), Error> {
-    let desired_mechs = {
-        let mut s = OidSet::new();
-        s.add(GSS_MECH_KRB5)?;
-        s
-    };
+    let desired_mechs = OidSet::singleton(GSS_MECH_KRB5)?;
     let (mut server_ctx, cname) = setup_server_ctx(service_name, &desired_mechs)?;
     let mut client_ctx = setup_client_ctx(cname, &desired_mechs)?;
     let mut server_tok: Option<Buf> = None;

@@ -36,8 +36,7 @@ fn store_returns_real_elements_and_usage() {
     kdc.kinit("testuser", "testpass");
     kdc.apply_env();
 
-    let mut desired_mechs = OidSet::new();
-    desired_mechs.add(GSS_MECH_KRB5).unwrap();
+    let desired_mechs = OidSet::singleton(GSS_MECH_KRB5).unwrap();
 
     let cred = Cred::acquire(None, None, CredUsage::Initiate, Some(&desired_mechs))
         .expect("acquire cred");
