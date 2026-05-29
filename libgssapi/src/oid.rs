@@ -3,9 +3,9 @@
 /// horror with you.
 use crate::error::{Error, MajorFlags};
 use libgssapi_sys::{
-    gss_OID, gss_OID_desc, gss_OID_set, gss_OID_set_desc, gss_add_oid_set_member,
-    gss_create_empty_oid_set, gss_release_oid_set, gss_test_oid_set_member, OM_uint32,
-    GSS_S_COMPLETE,
+    GSS_S_COMPLETE, OM_uint32, gss_OID, gss_OID_desc, gss_OID_set, gss_OID_set_desc,
+    gss_add_oid_set_member, gss_create_empty_oid_set, gss_release_oid_set,
+    gss_test_oid_set_member,
 };
 use std::{
     self,
@@ -16,8 +16,8 @@ use std::{
     iter::{ExactSizeIterator, FromIterator, IntoIterator, Iterator},
     marker::PhantomData,
     ops::Deref,
-    ptr, slice,
     os::raw::c_int,
+    ptr, slice,
     sync::LazyLock,
 };
 
@@ -35,9 +35,11 @@ pub static GSS_NT_HOSTBASED_SERVICE: Oid<'static> =
 
 pub static GSS_NT_ANONYMOUS: Oid<'static> = Oid::from_slice(b"\x2b\x06\x01\x05\x06\x03");
 
-pub static GSS_NT_EXPORT_NAME: Oid<'static> = Oid::from_slice(b"\x2b\x06\x01\x05\x06\x04");
+pub static GSS_NT_EXPORT_NAME: Oid<'static> =
+    Oid::from_slice(b"\x2b\x06\x01\x05\x06\x04");
 
-pub static GSS_NT_COMPOSITE_EXPORT: Oid<'static> = Oid::from_slice(b"\x2b\x06\x01\x05\x06\x06");
+pub static GSS_NT_COMPOSITE_EXPORT: Oid<'static> =
+    Oid::from_slice(b"\x2b\x06\x01\x05\x06\x06");
 
 pub static GSS_NT_KRB5_PRINCIPAL: Oid<'static> =
     Oid::from_slice(b"\x2a\x86\x48\x86\xf7\x12\x01\x02\x02\x01");
@@ -60,7 +62,8 @@ pub static GSS_MA_NEGOEX_AND_SPNEGO: Oid<'static> =
 pub static GSS_SEC_CONTEXT_SASL_SSF: Oid<'static> =
     Oid::from_slice(b"\x2a\x86\x48\x86\xf7\x12\x01\x02\x02\x05\x0f");
 
-pub static GSS_MECH_KRB5: Oid<'static> = Oid::from_slice(b"\x2a\x86\x48\x86\xf7\x12\x01\x02\x02");
+pub static GSS_MECH_KRB5: Oid<'static> =
+    Oid::from_slice(b"\x2a\x86\x48\x86\xf7\x12\x01\x02\x02");
 
 pub static GSS_MECH_IAKERB: Oid<'static> = Oid::from_slice(b"\x2b\x06\x01\x05\x02\x05");
 
@@ -97,7 +100,10 @@ static OIDS: LazyLock<HashMap<&'static [u8], &'static str>> = LazyLock::new(|| {
         (&*GSS_NT_KRB5_PRINCIPAL, "GSS_KRB5_NT_PRINCIPAL"),
         (&*GSS_NT_KRB5_ENTERPRISE_NAME, "GSS_KRB5_NT_ENTERPRISE_NAME"),
         (&*GSS_KRB5_CRED_NO_CI_FLAGS_X, "GSS_KRB5_CRED_NO_CI_FLAGS_X"),
-        (&*GSS_KRB5_GET_CRED_IMPERSONATOR, "GSS_KRB5_GET_CRED_IMPERSONATOR"),
+        (
+            &*GSS_KRB5_GET_CRED_IMPERSONATOR,
+            "GSS_KRB5_GET_CRED_IMPERSONATOR",
+        ),
     ])
 });
 
@@ -165,7 +171,9 @@ impl<'a> Deref for Oid<'a> {
         if self.0.elements.is_null() || self.0.length == 0 {
             &[]
         } else {
-            unsafe { slice::from_raw_parts(self.0.elements.cast(), self.0.length as usize) }
+            unsafe {
+                slice::from_raw_parts(self.0.elements.cast(), self.0.length as usize)
+            }
         }
     }
 }
@@ -230,7 +238,10 @@ impl Oid<'static> {
     /// `gss_OID_set`, which are freed with the set.
     #[allow(dead_code)]
     pub(crate) unsafe fn from_c(ptr: gss_OID) -> Oid<'static> {
-        assert!(!ptr.is_null(), "Oid::from_c: gssapi returned a null OID pointer");
+        assert!(
+            !ptr.is_null(),
+            "Oid::from_c: gssapi returned a null OID pointer"
+        );
         Oid(unsafe { *ptr }, PhantomData)
     }
 }
@@ -388,7 +399,7 @@ impl OidSet {
     /// `&self`) — per RFC 2744 §3.4, OID set members are freed with the
     /// set, so the borrow checker prevents the returned `Oid` from
     /// outliving its source.
-    pub fn get(&self, i: usize) -> Option<Oid<'_>> {
+    pub fn get<'a>(&'a self, i: usize) -> Option<Oid<'a>> {
         if i >= self.len() {
             return None;
         }

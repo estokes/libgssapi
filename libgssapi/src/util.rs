@@ -1,7 +1,7 @@
 use bytes;
 use libgssapi_sys::{
-    gss_buffer_desc, gss_buffer_desc_struct, gss_buffer_t, gss_release_buffer, OM_uint32,
-    GSS_S_COMPLETE,
+    GSS_S_COMPLETE, OM_uint32, gss_buffer_desc, gss_buffer_desc_struct, gss_buffer_t,
+    gss_release_buffer,
 };
 #[cfg(feature = "s4u")]
 use libgssapi_sys::{gss_buffer_set_t, gss_release_buffer_set};
@@ -16,11 +16,11 @@ use std::{
 mod iov {
     use super::*;
     use libgssapi_sys::{
-        gss_iov_buffer_desc, GSS_IOV_BUFFER_FLAG_ALLOCATE, GSS_IOV_BUFFER_FLAG_ALLOCATED,
+        GSS_IOV_BUFFER_FLAG_ALLOCATE, GSS_IOV_BUFFER_FLAG_ALLOCATED,
         GSS_IOV_BUFFER_TYPE_DATA, GSS_IOV_BUFFER_TYPE_EMPTY, GSS_IOV_BUFFER_TYPE_HEADER,
         GSS_IOV_BUFFER_TYPE_MECH_PARAMS, GSS_IOV_BUFFER_TYPE_PADDING,
         GSS_IOV_BUFFER_TYPE_SIGN_ONLY, GSS_IOV_BUFFER_TYPE_STREAM,
-        GSS_IOV_BUFFER_TYPE_TRAILER,
+        GSS_IOV_BUFFER_TYPE_TRAILER, gss_iov_buffer_desc,
     };
     use std::mem::ManuallyDrop;
     const GSS_IOV_BUFFER_FLAG_MASK: u32 = 0xFFFF0000;
@@ -146,13 +146,6 @@ mod iov {
         }
     }
 
-    // `DerefMut` was intentionally removed: after `unwrap_iov` on a STREAM
-    // token, gssapi may set a DATA `GssIov`'s buffer to point inside the
-    // STREAM `GssIov`'s buffer. Safe code could then `split_at_mut` the
-    // surrounding `&mut [GssIov]` and call `DerefMut` on both halves,
-    // producing two `&mut [u8]` that alias — instant UB by Rust's aliasing
-    // rules. Use `unsafe fn as_mut_slice` below when mutation is needed.
-
     impl<'a> GssIov<'a> {
         /// Create a new real Iov for calls to wrap_iov.
         pub fn new(typ: GssIovType, data: &'a mut [u8]) -> GssIov<'a> {
@@ -232,7 +225,9 @@ mod iov {
             if buf.value.is_null() || buf.length == 0 {
                 &mut []
             } else {
-                unsafe { slice::from_raw_parts_mut(buf.value.cast(), buf.length as usize) }
+                unsafe {
+                    slice::from_raw_parts_mut(buf.value.cast(), buf.length as usize)
+                }
             }
         }
     }

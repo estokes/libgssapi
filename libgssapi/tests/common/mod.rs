@@ -308,43 +308,45 @@ impl Drop for TestKdc {
 fn build_config(dir: &Path, port: u16, realm: &str) -> String {
     // One config file used by both impls. MIT ignores `[kdc]`; Heimdal
     // ignores `[kdcdefaults]` and the database-related keys inside
-    // `[realms]`.
+    // `[realms]`. Bodies are indented only for readability — krb5.conf
+    // ignores leading whitespace. Literal `{`/`}` are doubled for `format!`.
     format!(
-        "[libdefaults]\n\
-         \tdefault_realm = {realm}\n\
-         \tdns_canonicalize_hostname = false\n\
-         \trdns = false\n\
-         \tforwardable = true\n\
-         \tdns_lookup_kdc = false\n\
-         \tdns_lookup_realm = false\n\
-         \n\
-         [realms]\n\
-         \t{realm} = {{\n\
-         \t\tkdc = 127.0.0.1:{port}\n\
-         \t\tadmin_server = 127.0.0.1\n\
-         \t\tdatabase_name = {db}\n\
-         \t\tadmin_keytab = FILE:{admin_kt}\n\
-         \t\tacl_file = {acl}\n\
-         \t\tkey_stash_file = {stash}\n\
-         \t\tmax_life = 1h\n\
-         \t\tmax_renewable_life = 1h\n\
-         \t}}\n\
-         \n\
-         [kdcdefaults]\n\
-         \tkdc_ports = {port}\n\
-         \tkdc_tcp_ports = {port}\n\
-         \n\
-         [domain_realm]\n\
-         \ttest.example.com = {realm}\n\
-         \t.example.com = {realm}\n\
-         \n\
-         [kdc]\n\
-         \tdatabase = {{\n\
-         \t\tdbname = {heimdal_db}\n\
-         \t\tacl_file = {acl}\n\
-         \t\tmkey_file = {heimdal_mkey}\n\
-         \t\tlog_file = {heimdal_log}\n\
-         \t}}\n",
+        r#"[libdefaults]
+    default_realm = {realm}
+    dns_canonicalize_hostname = false
+    rdns = false
+    forwardable = true
+    dns_lookup_kdc = false
+    dns_lookup_realm = false
+
+[realms]
+    {realm} = {{
+        kdc = 127.0.0.1:{port}
+        admin_server = 127.0.0.1
+        database_name = {db}
+        admin_keytab = FILE:{admin_kt}
+        acl_file = {acl}
+        key_stash_file = {stash}
+        max_life = 1h
+        max_renewable_life = 1h
+    }}
+
+[kdcdefaults]
+    kdc_ports = {port}
+    kdc_tcp_ports = {port}
+
+[domain_realm]
+    test.example.com = {realm}
+    .example.com = {realm}
+
+[kdc]
+    database = {{
+        dbname = {heimdal_db}
+        acl_file = {acl}
+        mkey_file = {heimdal_mkey}
+        log_file = {heimdal_log}
+    }}
+"#,
         db = dir.join("principal").display(),
         admin_kt = dir.join("kadm5.keytab").display(),
         acl = dir.join("acl").display(),
