@@ -608,7 +608,18 @@ impl ServerCtx {
     /// server then this will return Ok(None). Otherwise it will
     /// return a token that needs to be sent to the client and fed to
     /// `ClientCtx::step`.
-    pub fn step(&mut self, tok: &[u8]) -> Result<Option<Buf>, Error> {
+    pub fn step(
+        &mut self,
+        tok: &[u8],
+        channel_bindings: Option<&[u8]>,
+    ) -> Result<Option<Buf>, Error> {
+        #[inline]
+        fn empty_buffer() -> gss_buffer_desc {
+            gss_buffer_desc {
+                length: 0,
+                value: ptr::null_mut(),
+            }
+        }
         match self.state {
             ServerCtxState::Uninitialized | ServerCtxState::Partial => (),
             ServerCtxState::Failed(e) => return Err(e),
@@ -619,6 +630,22 @@ impl ServerCtx {
         let mut out_tok = Buf::empty();
         let mut delegated_cred: gss_cred_id_t = ptr::null_mut();
         let mut flag_bits: u32 = 0;
+        let mut cbs = gss_channel_bindings_struct {
+            initiator_addrtype: 0,
+            initiator_address: empty_buffer(),
+            acceptor_addrtype: 0,
+            acceptor_address: empty_buffer(),
+            application_data: empty_buffer(),
+        };
+        let bindings = if let Some(cb) = channel_bindings {
+            cbs.application_data = gss_buffer_desc {
+                length: cb.len(),
+                value: cb.as_ptr() as *mut ffi::c_void,
+            };
+            &mut cbs as gss_channel_bindings_t
+        } else {
+            ptr::null_mut::<gss_channel_bindings_struct>()
+        };
         let major = unsafe {
             gss_accept_sec_context(
                 &mut minor as *mut OM_uint32,
@@ -628,7 +655,7 @@ impl ServerCtx {
                     Some(cred) => cred.to_c(),
                 },
                 tok.to_c(),
-                ptr::null_mut::<gss_channel_bindings_struct>(),
+                bindings,
                 ptr::null_mut::<gss_name_t>(),
                 ptr::null_mut::<gss_OID>(),
                 out_tok.to_c(),

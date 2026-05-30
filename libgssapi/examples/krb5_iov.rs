@@ -181,7 +181,7 @@ fn run(service_name: &[u8]) -> Result<(), Error> {
     loop {
         match client_ctx.step(server_tok.as_ref().map(|b| &**b), None)? {
             None => break,
-            Some(client_tok) => match server_ctx.step(&*client_tok)? {
+            Some(client_tok) => match server_ctx.step(&*client_tok, None)? {
                 None => break,
                 Some(tok) => {
                     server_tok = Some(tok);

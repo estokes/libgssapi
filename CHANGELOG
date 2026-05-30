@@ -1,3 +1,9 @@
+0.11.0
+- API: ServerCtx::step now takes a channel_bindings: Option<&[u8]> argument,
+  mirroring ClientCtx::step, and passes it to gss_accept_sec_context. This
+  lets an acceptor enforce channel bindings; previously the acceptor always
+  passed null bindings. Breaking change for callers of ServerCtx::step.
+
 0.10.0
 - SOUNDNESS: Oid is now Oid<'a>, tracking the lifetime of its BER bytes.
   OIDs borrowed from an OidSet can no longer be copied out and used after

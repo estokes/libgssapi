@@ -66,7 +66,7 @@ fn mutual_auth_handshake_and_wrap() {
             None => break,
             Some(client_tok) => {
                 let server_out = server_ctx
-                    .step(&client_tok)
+                    .step(&client_tok, None)
                     .unwrap_or_else(|e| panic!("server step {steps}: {e}"));
                 match server_out {
                     None => break,
