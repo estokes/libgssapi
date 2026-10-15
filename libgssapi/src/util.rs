@@ -3,7 +3,6 @@ use libgssapi_sys::{
     GSS_S_COMPLETE, OM_uint32, gss_buffer_desc, gss_buffer_desc_struct, gss_buffer_t,
     gss_release_buffer,
 };
-#[cfg(feature = "s4u")]
 use libgssapi_sys::{gss_buffer_set_t, gss_release_buffer_set};
 use std::{
     ffi,
@@ -378,8 +377,7 @@ impl GssBytes {
     }
 }
 
-#[cfg(feature = "s4u")]
-mod s4u {
+mod bufset {
     use super::*;
 
     /// This represents an owned buffer set we got from gssapi, it will be
@@ -450,5 +448,4 @@ mod s4u {
     }
 }
 
-#[cfg(feature = "s4u")]
-pub(crate) use s4u::*;
+pub(crate) use bufset::*;

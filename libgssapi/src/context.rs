@@ -5,7 +5,7 @@ use crate::{
     error::{Error, MajorFlags, gss_error},
     name::Name,
     oid::{NO_OID, Oid},
-    util::{Buf, BufRef},
+    util::{Buf, BufRef, BufSet},
 };
 use libgssapi_sys::{
     _GSS_C_INDEFINITE, _GSS_S_CONTINUE_NEEDED, GSS_C_ANON_FLAG, GSS_C_CONF_FLAG,
@@ -14,7 +14,7 @@ use libgssapi_sys::{
     GSS_C_TRANS_FLAG, GSS_S_COMPLETE, OM_uint32, gss_OID, gss_accept_sec_context,
     gss_buffer_desc, gss_channel_bindings_struct, gss_channel_bindings_t, gss_cred_id_t,
     gss_ctx_id_t, gss_delete_sec_context, gss_get_mic, gss_init_sec_context,
-    gss_inquire_context, gss_name_t, gss_qop_t, gss_unwrap, gss_verify_mic, gss_wrap,
+    gss_inquire_context, gss_inquire_sec_context_by_oid, gss_name_t, gss_qop_t, gss_unwrap, gss_verify_mic, gss_wrap,
 };
 #[cfg(feature = "iov")]
 use libgssapi_sys::{
@@ -431,6 +431,27 @@ unsafe fn open(ctx: gss_ctx_id_t) -> Result<bool, Error> {
     Ok(c.open.unwrap() > 0)
 }
 
+unsafe fn inquire_by_oid(ctx: gss_ctx_id_t, desired: &Oid) -> Result<Vec<Vec<u8>>, Error> {
+    let mut minor = GSS_S_COMPLETE;
+    let mut out = BufSet::empty();
+    let major = unsafe {
+        gss_inquire_sec_context_by_oid(
+            &mut minor as *mut OM_uint32,
+            ctx,
+            desired.to_c(),
+            out.to_c(),
+        )
+    };
+    if gss_error(major) > 0 {
+        Err(Error {
+            major: MajorFlags::from_bits_retain(major),
+            minor,
+        })
+    } else {
+        Ok(out.iter().map(|b| b.to_vec()).collect())
+    }
+}
+
 pub trait SecurityContext {
     /// Wrap a message with optional encryption. If `encrypt` is true
     /// then only the other side of the context can read the
@@ -550,6 +571,14 @@ pub trait SecurityContext {
 
     /// Return true if the security context is open
     fn open(&self) -> Result<bool, Error>;
+
+    /// Query a mechanism-specific attribute of the security context
+    /// (`gss_inquire_sec_context_by_oid`), for example the session key
+    /// with `GSS_INQ_SSPI_SESSION_KEY`. Each element of the result is
+    /// one buffer of the set the mechanism returned; for the session key
+    /// MIT and Heimdal return the key, then the OID of its encryption
+    /// type. The context must be established.
+    fn inquire_sec_context_by_oid(&self, desired: &Oid) -> Result<Vec<Vec<u8>>, Error>;
 
     /// Return true if the security context is fully initialized
     fn is_complete(&self) -> bool;
@@ -774,6 +803,10 @@ impl SecurityContext for ServerCtx {
         unsafe { open(self.ctx) }
     }
 
+    fn inquire_sec_context_by_oid(&self, desired: &Oid) -> Result<Vec<Vec<u8>>, Error> {
+        unsafe { inquire_by_oid(self.ctx, desired) }
+    }
+
     fn is_complete(&self) -> bool {
         match self.state {
             ServerCtxState::Complete => true,
@@ -996,6 +1029,10 @@ impl SecurityContext for ClientCtx {
 
     fn open(&self) -> Result<bool, Error> {
         unsafe { open(self.ctx) }
+    }
+
+    fn inquire_sec_context_by_oid(&self, desired: &Oid) -> Result<Vec<Vec<u8>>, Error> {
+        unsafe { inquire_by_oid(self.ctx, desired) }
     }
 
     fn is_complete(&self) -> bool {

@@ -10,7 +10,10 @@ use common::TestKdc;
 use libgssapi::context::{ClientCtx, CtxFlags, SecurityContext, ServerCtx};
 use libgssapi::credential::{Cred, CredUsage};
 use libgssapi::name::Name;
-use libgssapi::oid::{GSS_MECH_KRB5, GSS_NT_HOSTBASED_SERVICE, GSS_NT_USER_NAME, OidSet};
+use libgssapi::oid::{
+    GSS_INQ_SSPI_SESSION_KEY, GSS_MECH_KRB5, GSS_NT_HOSTBASED_SERVICE, GSS_NT_USER_NAME,
+    OidSet,
+};
 use libgssapi::util::Buf;
 
 #[test]
@@ -78,6 +81,16 @@ fn mutual_auth_handshake_and_wrap() {
 
     assert!(client_ctx.is_complete());
     assert!(server_ctx.is_complete());
+
+    // Both ends derive the same session key.
+    let client_key = client_ctx
+        .inquire_sec_context_by_oid(&GSS_INQ_SSPI_SESSION_KEY)
+        .expect("client session key");
+    let server_key = server_ctx
+        .inquire_sec_context_by_oid(&GSS_INQ_SSPI_SESSION_KEY)
+        .expect("server session key");
+    assert!(!client_key.is_empty() && !client_key[0].is_empty());
+    assert_eq!(client_key[0], server_key[0]);
 
     let secret = b"super secret message";
     let wrapped = client_ctx.wrap(true, secret).expect("wrap");
