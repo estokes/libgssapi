@@ -14,5 +14,10 @@ categories = ["api-bindings", "authentication", "cryptography", "os::unix-apis"]
 links = "gssapi_krb5"
 
 [build-dependencies]
-bindgen = "0.71"
+bindgen = { version = "0.73", default-features = false }
 pkg-config = "0.3"
+
+[features]
+default = ["bindgen-runtime"]
+bindgen-static = ["bindgen/static"]
+bindgen-runtime = ["bindgen/runtime"]

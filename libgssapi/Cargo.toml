@@ -28,8 +28,10 @@ categories = ["api-bindings", "authentication", "cryptography", "os::unix-apis"]
 #   [target.'cfg(not(target_os = "macos"))'.dependencies]
 #   libgssapi = { version = "...", features = ["iov", "localname", "store"] }
 [features]
-default = []
+default = ["bindgen-runtime"]
 all = ["iov", "localname", "s4u", "store"]
+bindgen-runtime = ["libgssapi-sys/bindgen-runtime"]
+bindgen-static = ["libgssapi-sys/bindgen-static"]
 iov = []
 s4u = []
 localname = []
@@ -43,7 +45,7 @@ required-features = ["iov"]
 
 [dependencies]
 bytes = "1"
-libgssapi-sys = { version = "0.3.1", path = "../libgssapi-sys" }
+libgssapi-sys = { version = "0.3.1", path = "../libgssapi-sys", default-features = false }
 bitflags = "2.0"
 
 [dev-dependencies]
